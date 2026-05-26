@@ -1,20 +1,11 @@
 <template>
-  <div
-    class="api-item"
+  <div class="api-item"
     :class="{ disabled: isDisabled, dragging: isDragging, 'drag-over': isDragOver, pinned: api.pinned }"
-    @dragover.prevent="$emit('dragOver')"
-    @drop.prevent="$emit('drop')"
-    @dragend="$emit('dragEnd')"
-    @dragstart="handleDragStart"
-  >
+    @dragover.prevent="$emit('dragOver')" @drop.prevent="$emit('drop')" @dragend="$emit('dragEnd')"
+    @dragstart="handleDragStart">
     <span class="drag-handle" draggable="true" title="Drag to reorder">⠿</span>
 
-    <input
-      type="checkbox"
-      :checked="isSelected"
-      @change="$emit('toggleSelect')"
-      class="checkbox small-checkbox"
-    />
+    <input type="checkbox" :checked="isSelected" @change="$emit('toggleSelect')" class="checkbox small-checkbox" />
 
     <MethodBadge :method="api.method" />
 
@@ -30,25 +21,15 @@
       <span v-if="hitCount > 0" class="hit-badge" title="Times intercepted">
         {{ hitCount }}
       </span>
-      <button
-        @click.stop="$emit('togglePinned')"
-        class="pin-btn"
-        :class="{ active: api.pinned }"
-        :title="api.pinned ? 'Unpin' : 'Pin to top'"
-      >{{ api.pinned ? '★' : '☆' }}</button>
-      <button
-        @click="$emit('toggleEnabled')"
+      <button @click.stop="$emit('togglePinned')" class="pin-btn" :class="{ active: api.pinned }"
+        :title="api.pinned ? 'Unpin' : 'Pin to top'">{{ api.pinned ? '★' : '☆' }}</button>
+      <button @click="$emit('toggleEnabled')"
         :class="['toggle-status-btn', 'small', api.enabled ? 'enabled' : 'disabled']"
-        :title="api.enabled ? 'Pause API' : 'Resume API'"
-      >
+        :title="api.enabled ? 'Pause API' : 'Resume API'">
         {{ api.enabled ? "⏸️" : "▶️" }}
       </button>
       <div class="menu-container">
-        <button
-          @click.stop="$emit('toggleMenu', $event)"
-          class="action-btn menu-btn"
-          title="More actions"
-        >⋮</button>
+        <button @click.stop="$emit('toggleMenu', $event)" class="action-btn menu-btn" title="More actions">⋮</button>
         <slot name="menu"></slot>
       </div>
     </div>
@@ -87,17 +68,24 @@ function handleDragStart(event) {
   padding: 10px 12px;
   background: var(--surface-bg);
   border: 1px solid var(--border-soft);
-  border-radius: 8px;
+  border-radius: 12px 12px 0 0;
   margin-bottom: 8px;
   transition: all 0.15s ease;
   position: relative;
 }
 
-.api-item:hover { background: var(--surface-soft); z-index: 100; }
+.api-item:hover {
+  background: var(--surface-soft);
+  z-index: 100;
+}
 
-.api-item.pinned { border-left: 3px solid var(--primary); }
+.api-item.pinned {
+  border-left: 3px solid var(--primary);
+}
 
-.api-item.dragging { opacity: 0.4; }
+.api-item.dragging {
+  opacity: 0.4;
+}
 
 .api-item.drag-over {
   border-color: var(--primary);
@@ -105,7 +93,9 @@ function handleDragStart(event) {
   box-shadow: 0 0 0 2px var(--primary);
 }
 
-.api-item.disabled .api-label { text-decoration: line-through; }
+.api-item.disabled .api-label {
+  text-decoration: line-through;
+}
 
 .drag-handle {
   color: var(--text-faint);
@@ -118,7 +108,9 @@ function handleDragStart(event) {
   letter-spacing: -1px;
 }
 
-.drag-handle:active { cursor: grabbing; }
+.drag-handle:active {
+  cursor: grabbing;
+}
 
 .api-info {
   flex: 1;
@@ -136,7 +128,10 @@ function handleDragStart(event) {
   min-width: 0;
 }
 
-.pin-indicator { font-size: 11px; flex-shrink: 0; }
+.pin-indicator {
+  font-size: 11px;
+  flex-shrink: 0;
+}
 
 .api-label {
   font-weight: 600;
@@ -192,8 +187,13 @@ function handleDragStart(event) {
   flex-shrink: 0;
 }
 
-.pin-btn:hover { color: var(--primary); }
-.pin-btn.active { color: #f0a500; }
+.pin-btn:hover {
+  color: var(--primary);
+}
+
+.pin-btn.active {
+  color: #f0a500;
+}
 
 .toggle-status-btn {
   padding: 4px 8px;
@@ -206,11 +206,21 @@ function handleDragStart(event) {
   transition: all 0.2s ease;
 }
 
-.toggle-status-btn.enabled { color: #28a745; }
-.toggle-status-btn.disabled { color: var(--text-muted); }
-.toggle-status-btn:hover { background: var(--surface-soft); }
+.toggle-status-btn.enabled {
+  color: #28a745;
+}
 
-.menu-container { position: relative; }
+.toggle-status-btn.disabled {
+  color: var(--text-muted);
+}
+
+.toggle-status-btn:hover {
+  background: var(--surface-soft);
+}
+
+.menu-container {
+  position: relative;
+}
 
 .action-btn {
   background: transparent;
@@ -225,9 +235,20 @@ function handleDragStart(event) {
   line-height: 1;
 }
 
-.action-btn:hover { background: var(--surface-soft); }
-.menu-btn { font-size: 20px; }
+.action-btn:hover {
+  background: var(--surface-soft);
+}
 
-.checkbox { cursor: pointer; }
-.small-checkbox { width: 14px; height: 14px; }
+.menu-btn {
+  font-size: 20px;
+}
+
+.checkbox {
+  cursor: pointer;
+}
+
+.small-checkbox {
+  width: 14px;
+  height: 14px;
+}
 </style>

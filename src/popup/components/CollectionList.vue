@@ -300,7 +300,7 @@ defineExpose({
 
 .collection-container-inner {
   border: 2px solid var(--border-soft);
-  border-radius: 12px;
+  border-radius: 12px 12px 0 0;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -319,10 +319,10 @@ defineExpose({
 
 .collection-card {
   background: var(--surface-bg);
-  border-radius: 12px;
+  border-radius: 12px 12px 0 0;
   margin-bottom: 16px;
   box-shadow: var(--card-shadow);
-  border: 1px solid var(--border-soft);
+ border: 1px solid var(--border-soft);
   overflow: visible;
   transition: all 0.3s ease;
   position: relative;

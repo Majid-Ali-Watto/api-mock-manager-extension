@@ -265,7 +265,7 @@ async function clearCache() {
 
 .developer-section {
   background: var(--surface-muted);
-  border: 1px solid var(--border-soft);
+ border: 1px solid var(--border-soft);
   border-radius: 8px;
   padding: 14px;
 }

@@ -130,10 +130,10 @@ function toggleTheme() {
   --app-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   --app-border: #764ba2;
   --header-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --panel-bg: #ffffff;
+  --panel-bg: #F9F6EE;
   --surface-bg: #ffffff;
   --surface-muted: #f8f9fa;
-  --surface-soft: #e9ecef;
+  --surface-soft: #EFEFEF;
   --text-main: #212529;
   --text-body: #495057;
   --text-muted: #6c757d;

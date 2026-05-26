@@ -100,7 +100,7 @@ defineEmits(["toggleSelect", "toggleCollapse", "toggleSearch", "addApi", "toggle
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  padding: 12px;
+  padding: 8px 12px;
   background: var(--header-bg);
   border-radius: 10px 10px 0 0;
   color: white;

@@ -104,10 +104,10 @@ defineEmits([
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px;
+  padding: 8px 12px;
   background: var(--header-bg);
   color: white;
-  border-radius: 8px;
+  border-radius: 12px 12px 0 0;
   margin-bottom: 16px;
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
