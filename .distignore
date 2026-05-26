@@ -1,0 +1,36 @@
+# Files to exclude when packaging the extension
+
+# Source files (not needed - only dist is needed)
+src/**
+index.html
+vite.config.js
+
+# Documentation (users can view on GitHub)
+README.md
+FLOW-DIAGRAM.md
+
+# Development files
+node_modules/**
+package-lock.json
+.git/**
+.gitignore
+.distignore
+
+# Test files
+test.html
+*.test.js
+*.spec.js
+
+# Build configuration
+vite.config.js
+package.json
+
+# IDE and system files
+.vscode/**
+.idea/**
+.DS_Store
+Thumbs.db
+*.swp
+*.log
+
+# Only include dist/ folder contents for the extension
