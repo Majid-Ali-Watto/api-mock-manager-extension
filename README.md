@@ -247,10 +247,19 @@ Command notes:
 
 ## CI And Releases
 
-CI (`.github/workflows/ci.yml`) runs on every push to `master` and every pull request, as two status checks:
+CI (`.github/workflows/ci.yml`) runs on every push to any branch and on every pull request, as two status checks:
 
 1. **Checks**: `npm audit` for production dependencies (fails on high severity), unit tests, production build and `npm run verify`.
 2. **E2E**: builds, runs the end-to-end suite in Chrome for Testing, and uploads the packaged zip as the `api-mock-extension` artifact.
+
+`master` is protected and both checks are required, for admins too. A commit can only land on `master` after it has passed CI, with or without a pull request:
+
+```bash
+git push origin HEAD:ship        # any branch name; CI runs on it
+gh run watch                     # wait for both checks to pass
+git push origin HEAD:master      # accepted only once that commit is green
+git push origin --delete ship    # optional cleanup
+```
 
 To publish a release:
 

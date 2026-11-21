@@ -1,12 +1,17 @@
 name: CI
 
 on:
+  # Every branch: master is protected (admins included) and only accepts commits
+  # that already passed both checks, so push to a branch first, then to master.
   push:
-    branches: [master]
+    branches: ["**"]
   pull_request:
   # Reused by release.yml so a release only ships if every check passes.
   workflow_call:
 
+# The job `name:` values below are required status checks in master's branch
+# protection. Renaming a job means updating the protection rule too, or pushes
+# and pull requests will wait forever for a check that never reports.
 jobs:
   checks:
     name: Checks (audit, unit tests, build, verify)

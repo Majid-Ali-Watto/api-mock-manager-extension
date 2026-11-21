@@ -26,6 +26,7 @@ Stack: Vue 3 popup UI, Vite build, IndexedDB storage, Manifest V3 background/con
 - Page ↔ extension traffic goes over the private MessagePort set up at `document_start`; never send mock data via DOM events.
 - Run `npm test` and `npm run build && npm run test:e2e` after touching interception.
 - Permission changes must update the allowlist in `scripts/verify.mjs` and `public/privacy.html` together.
+- `master` is protected (admins included): push to a branch, wait for both CI checks, then `git push origin HEAD:master`. Required check names are the CI job `name:` values.
 - Releases: bump `package.json` + `public/manifest.json`, add a `CHANGELOG.md` section, push a `vX.Y.Z` tag.
 
 ## Efficient Workflow
