@@ -2,8 +2,21 @@ import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import { resolve } from "path";
 
+// content.js / injected.js run as classic content scripts and cannot `import`.
+// Fail the build if Rollup ever splits shared code out of them into a chunk.
+const classicContentScripts = {
+  name: "classic-content-scripts",
+  generateBundle(_, bundle) {
+    for (const chunk of Object.values(bundle)) {
+      if (chunk.type === "chunk" && ["content", "injected"].includes(chunk.name) && chunk.imports.length) {
+        this.error(`${chunk.fileName} must be self-contained but imports: ${chunk.imports.join(", ")}`);
+      }
+    }
+  },
+};
+
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [vue(), classicContentScripts],
   build: {
     // Disable source maps in production for smaller bundle size
     sourcemap: false,

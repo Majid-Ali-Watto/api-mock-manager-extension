@@ -3,33 +3,54 @@
     :class="{ disabled: isDisabled, dragging: isDragging, 'drag-over': isDragOver, pinned: api.pinned }"
     @dragover.prevent="$emit('dragOver')" @drop.prevent="$emit('drop')" @dragend="$emit('dragEnd')"
     @dragstart="handleDragStart">
-    <span class="drag-handle" draggable="true" title="Drag to reorder">⠿</span>
+    <span class="drag-handle" draggable="true" title="Drag to reorder"><Icon name="grip" :size="14" /></span>
 
-    <input type="checkbox" :checked="isSelected" @change="$emit('toggleSelect')" class="checkbox small-checkbox" />
+    <input type="checkbox" :checked="isSelected" @change="$emit('toggleSelect')" class="ui-checkbox" title="Select API" />
 
     <MethodBadge :method="api.method" />
 
     <div class="api-info" @click="$emit('viewInfo')" title="View details">
       <div class="api-label-row">
-        <span v-if="api.pinned" class="pin-indicator" title="Pinned">📌</span>
-        <span class="api-label" :title="api.label">{{ api.label }}</span>
+        <span class="api-label" :title="api.label">{{ api.label || api.url }}</span>
+        <span :class="['ui-chip', 'ui-chip--mono', statusTone]" :title="`Responds with status ${effectiveStatus}`">{{ effectiveStatus }}</span>
+        <span v-if="modeLabel" class="ui-chip ui-chip--danger" :title="`Behavior: ${modeLabel}`">
+          <Icon name="alert" :size="11" stroke-width="2.4" /> {{ modeLabel }}
+        </span>
+        <span v-if="api.activeVariant" class="ui-chip ui-chip--accent" title="Active variant">
+          <Icon name="layers" :size="11" stroke-width="2.4" /> {{ api.activeVariant }}
+        </span>
+        <span v-if="api.delay > 0" class="ui-chip" title="Response delay">
+          <Icon name="clock" :size="11" stroke-width="2.4" /> {{ formatDelay(api.delay) }}
+        </span>
       </div>
-      <span class="api-url" :title="api.url">{{ api.url }}</span>
+      <div class="api-url-row">
+        <span class="api-url" :title="api.url">{{ api.url }}</span>
+        <span v-if="api.matchQuery" class="meta" :title="`Requires query: ${api.matchQuery}`">?{{ api.matchQuery }}</span>
+        <span v-if="api.matchBody" class="meta" title="Matches on request body">body match</span>
+        <span v-if="api.templated" class="meta" title="Dynamic response (templates)"><Icon name="zap" :size="10" stroke-width="2.4" /> dynamic</span>
+        <span v-if="contentLabel" class="meta" :title="`Content type: ${api.contentType || 'none'}`">{{ contentLabel }}</span>
+        <span v-if="api.recorded" class="meta" title="Recorded from a real response"><Icon name="record" :size="8" /> recorded</span>
+      </div>
     </div>
 
     <div class="api-actions">
-      <span v-if="hitCount > 0" class="hit-badge" title="Times intercepted">
+      <span v-if="hitCount > 0" class="ui-chip ui-chip--accent hit-badge" title="Times intercepted">
         {{ hitCount }}
       </span>
-      <button @click.stop="$emit('togglePinned')" class="pin-btn" :class="{ active: api.pinned }"
-        :title="api.pinned ? 'Unpin' : 'Pin to top'">{{ api.pinned ? '★' : '☆' }}</button>
-      <button @click="$emit('toggleEnabled')"
-        :class="['toggle-status-btn', 'small', api.enabled ? 'enabled' : 'disabled']"
-        :title="api.enabled ? 'Pause API' : 'Resume API'">
-        {{ api.enabled ? "⏸️" : "▶️" }}
+      <button @click.stop="$emit('togglePinned')" :class="['ui-icon-btn', 'ui-icon-btn--sm', 'pin-btn', { active: api.pinned }]"
+        :title="api.pinned ? 'Unpin' : 'Pin to top'">
+        <Icon name="star" :size="14" :filled="api.pinned" />
       </button>
+      <ToggleSwitch
+        size="sm"
+        :checked="api.enabled !== false"
+        :title="api.enabled !== false ? 'Pause API' : 'Resume API'"
+        @toggle="$emit('toggleEnabled')"
+      />
       <div class="menu-container">
-        <button @click.stop="$emit('toggleMenu', $event)" class="action-btn menu-btn" title="More actions">⋮</button>
+        <button @click.stop="$emit('toggleMenu', $event)" class="ui-icon-btn ui-icon-btn--sm menu-btn" title="More actions">
+          <Icon name="more" :size="15" />
+        </button>
         <slot name="menu"></slot>
       </div>
     </div>
@@ -37,7 +58,10 @@
 </template>
 
 <script setup>
+import { computed } from "vue";
 import MethodBadge from "./MethodBadge.vue";
+import Icon from "./Icon.vue";
+import ToggleSwitch from "./ToggleSwitch.vue";
 
 const props = defineProps({
   api: { type: Object, required: true },
@@ -53,6 +77,35 @@ const emit = defineEmits([
   "togglePinned", "dragStart", "dragOver", "drop", "dragEnd",
 ]);
 
+const MODE_LABELS = { "network-error": "network error", timeout: "timeout", hang: "hang" };
+
+// The active variant (if any) decides what the page actually receives.
+const activeVariant = computed(() =>
+  props.api.activeVariant ? (props.api.variants || []).find((v) => v.name === props.api.activeVariant) : null
+);
+const effectiveStatus = computed(() => activeVariant.value?.status || props.api.status || 200);
+const effectiveMode = computed(() => activeVariant.value?.responseMode || props.api.responseMode || "mock");
+const modeLabel = computed(() => MODE_LABELS[effectiveMode.value] || "");
+
+const statusTone = computed(() => {
+  const s = Number(effectiveStatus.value);
+  if (s >= 500) return "ui-chip--danger";
+  if (s >= 400) return "ui-chip--warning";
+  if (s >= 300) return "ui-chip--info";
+  return "ui-chip--success";
+});
+
+const contentLabel = computed(() => {
+  const type = props.api.contentType;
+  if (typeof type !== "string" || /json/i.test(type)) return "";
+  if (!type) return "no body type";
+  return { "text/plain": "text", "text/html": "html", "application/xml": "xml", "text/event-stream": "sse" }[type] || type;
+});
+
+function formatDelay(ms) {
+  return ms >= 1000 ? `${(ms / 1000).toFixed(ms % 1000 ? 1 : 0)}s` : `${ms}ms`;
+}
+
 function handleDragStart(event) {
   event.dataTransfer.effectAllowed = "move";
   event.dataTransfer.setData("text/plain", String(props.api.id));
@@ -62,25 +115,26 @@ function handleDragStart(event) {
 
 <style scoped>
 .api-item {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  background: var(--surface-bg);
-  border: 1px solid var(--border-soft);
-  border-radius: 12px 12px 0 0;
-  margin-bottom: 8px;
-  transition: all 0.15s ease;
-  position: relative;
+  gap: 9px;
+  padding: 8px 10px 8px 4px;
+  border-top: 1px solid var(--border);
+  transition: background 0.12s;
+}
+
+.api-item:first-child {
+  border-top: none;
 }
 
 .api-item:hover {
-  background: var(--surface-soft);
-  z-index: 100;
+  background: var(--surface-2);
 }
 
-.api-item.pinned {
-  border-left: 3px solid var(--primary);
+.api-item.disabled .api-info,
+.api-item.disabled :deep(.method-badge) {
+  opacity: 0.5;
 }
 
 .api-item.dragging {
@@ -88,167 +142,106 @@ function handleDragStart(event) {
 }
 
 .api-item.drag-over {
-  border-color: var(--primary);
-  background: var(--focus-ring);
-  box-shadow: 0 0 0 2px var(--primary);
-}
-
-.api-item.disabled .api-label {
-  text-decoration: line-through;
+  box-shadow: inset 0 2px 0 var(--accent);
 }
 
 .drag-handle {
-  color: var(--text-faint);
-  font-size: 16px;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  color: var(--text-3);
   cursor: grab;
-  flex-shrink: 0;
-  line-height: 1;
-  user-select: none;
-  padding: 0 2px;
-  letter-spacing: -1px;
+  opacity: 0;
+  transition: opacity 0.12s;
 }
 
-.drag-handle:active {
-  cursor: grabbing;
+.api-item:hover .drag-handle {
+  opacity: 1;
 }
 
 .api-info {
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
   cursor: pointer;
 }
 
-.api-label-row {
+.api-label-row,
+.api-url-row {
   display: flex;
   align-items: center;
   gap: 5px;
   min-width: 0;
 }
 
-.pin-indicator {
-  font-size: 11px;
-  flex-shrink: 0;
-}
-
 .api-label {
-  font-weight: 600;
   font-size: 13px;
-  color: var(--text-body);
+  font-weight: 600;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+}
+
+.api-info:hover .api-label {
+  color: var(--accent);
+}
+
+.api-url-row {
+  margin-top: 2px;
 }
 
 .api-url {
-  font-size: 11px;
-  color: var(--text-muted);
-  font-family: "Courier New", monospace;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-3);
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+}
+
+.meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.meta::before {
+  content: "·";
+  margin-right: 2px;
+  color: var(--text-3);
 }
 
 .api-actions {
   display: flex;
-  gap: 6px;
   align-items: center;
+  gap: 4px;
   flex-shrink: 0;
 }
 
 .hit-badge {
-  min-width: 22px;
-  height: 22px;
-  padding: 0 7px;
-  border-radius: 999px;
-  background: #dc3545;
-  color: white;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
-  box-shadow: 0 2px 6px rgba(220, 53, 69, 0.25);
+  margin-right: 4px;
 }
 
 .pin-btn {
-  background: transparent;
-  border: none;
-  font-size: 16px;
-  cursor: pointer;
-  color: var(--text-faint);
-  padding: 2px 4px;
-  border-radius: 4px;
-  transition: all 0.15s;
-  line-height: 1;
-  flex-shrink: 0;
+  opacity: 0;
 }
 
-.pin-btn:hover {
-  color: var(--primary);
+.api-item:hover .pin-btn,
+.pin-btn:focus-visible,
+.pin-btn.active {
+  opacity: 1;
 }
 
 .pin-btn.active {
-  color: #f0a500;
-}
-
-.toggle-status-btn {
-  padding: 4px 8px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 15px;
-  background: transparent;
-  flex-shrink: 0;
-  transition: all 0.2s ease;
-}
-
-.toggle-status-btn.enabled {
-  color: #28a745;
-}
-
-.toggle-status-btn.disabled {
-  color: var(--text-muted);
-}
-
-.toggle-status-btn:hover {
-  background: var(--surface-soft);
+  color: var(--warning);
 }
 
 .menu-container {
   position: relative;
-}
-
-.action-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-body);
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 18px;
-  font-weight: bold;
-  transition: all 0.2s ease;
-  line-height: 1;
-}
-
-.action-btn:hover {
-  background: var(--surface-soft);
-}
-
-.menu-btn {
-  font-size: 20px;
-}
-
-.checkbox {
-  cursor: pointer;
-}
-
-.small-checkbox {
-  width: 14px;
-  height: 14px;
 }
 </style>

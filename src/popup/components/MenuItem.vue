@@ -1,15 +1,18 @@
 <template>
-  <button @click="$emit('click')" :class="['menu-item', { delete: isDelete }]">
-    <span class="menu-icon">{{ icon }}</span>
+  <button @click="$emit('click')" :class="['menu-item', { delete: isDelete }]" role="menuitem">
+    <Icon v-if="icon" :name="icon" :size="14" :filled="filled" class="menu-icon" />
     <span>{{ label }}</span>
   </button>
 </template>
 
 <script setup>
+import Icon from "./Icon.vue";
+
 defineProps({
   icon: String,
   label: String,
   isDelete: Boolean,
+  filled: Boolean,
 });
 
 defineEmits(["click"]);
@@ -17,36 +20,40 @@ defineEmits(["click"]);
 
 <style scoped>
 .menu-item {
-  width: 100%;
-  padding: 8px 12px;
-  border: none;
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-  border-radius: 6px;
-  transition: all 0.2s ease;
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--text-body);
+  gap: 9px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12.5px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
 }
 
-.menu-item:hover {
-  background: var(--surface-muted);
-}
-
-.menu-item.delete {
-  color: #dc3545;
-}
-
-.menu-item.delete:hover {
-  background: rgba(220, 53, 69, 0.12);
+.menu-item:hover,
+.menu-item:focus-visible {
+  background: var(--surface-3);
+  outline: none;
 }
 
 .menu-icon {
-  font-size: 14px;
-  width: 16px;
-  text-align: center;
+  color: var(--text-3);
+}
+
+.menu-item.delete {
+  color: var(--danger-text);
+}
+
+.menu-item.delete .menu-icon {
+  color: var(--danger);
+}
+
+.menu-item.delete:hover {
+  background: var(--danger-soft);
 }
 </style>

@@ -1,182 +1,262 @@
 <template>
   <div class="api-form-page">
-    <div class="api-form-card">
-      <div class="page-header">
+    <header class="page-header">
+      <div class="page-header-inner">
         <div class="header-info">
-          <span v-if="collectionName" class="collection-tag">{{ collectionName }}</span>
-          <h2 class="page-title">{{ isEdit ? "✏️ Edit API" : "➕ Add New API" }}</h2>
+          <button @click="handleCancel" class="ui-icon-btn" title="Close"><Icon name="arrow-left" /></button>
+          <div>
+            <div class="breadcrumb">
+              <Icon name="folder" :size="12" />
+              <span>{{ collectionName || "Collection" }}</span>
+            </div>
+            <h2 class="page-title">{{ isEdit ? "Edit API" : "New API" }}</h2>
+          </div>
         </div>
-        <button @click="handleCancel" class="cancel-btn" title="Cancel">✕ Cancel</button>
+        <div class="header-actions">
+          <button @click="handleCancel" class="ui-btn ui-btn--ghost cancel-btn" title="Cancel">Cancel</button>
+          <button @click="save" class="ui-btn ui-btn--primary save-btn" :disabled="!isFormValid">
+            <Icon name="save" :size="14" /> {{ isEdit ? "Save changes" : "Create API" }}
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div class="form-body">
+      <div v-if="saveError" class="save-error">
+        <Icon name="alert" :size="15" />
+        <span class="error-message">{{ saveError }}</span>
       </div>
 
-      <div class="form-body">
-        <!-- URL + match type -->
-        <div class="field-group">
-          <div class="url-row">
-            <div class="field-col">
-              <label class="field-label">URL</label>
-              <input v-model="url" placeholder="https://api.example.com/endpoint" class="input-field" />
-            </div>
-            <div class="field-col match-col">
-              <label class="field-label">Match</label>
-              <select v-model="urlMatchType" class="match-type-select" title="URL match strategy">
-                <option value="auto">Auto</option>
+      <!-- Request matching -->
+      <section class="form-card">
+        <div class="card-head">
+          <h3>Request matching</h3>
+          <p>Which requests this mock answers.</p>
+        </div>
+        <div class="grid">
+          <div class="field span-12">
+            <label class="ui-label">Method &amp; URL</label>
+            <div class="url-control">
+              <select v-model="method" :class="['method-select', `m-${method.toLowerCase()}`]" title="Method">
+                <option v-for="m in methods" :key="m">{{ m }}</option>
+              </select>
+              <input v-model="url" placeholder="https://api.example.com/users/:id" class="url-input" spellcheck="false" />
+              <select v-model="urlMatchType" class="match-select" title="URL match strategy">
+                <option value="auto">Auto match</option>
                 <option value="regex">Regex</option>
               </select>
             </div>
+            <p class="hint">Full URL or path. Use <code>*</code> wildcards or <code>:param</code> segments; query strings are ignored.</p>
+          </div>
+          <div class="field span-6">
+            <label class="ui-label">Label</label>
+            <input v-model="label" placeholder="e.g. Get user" class="ui-input" />
+          </div>
+          <div class="field span-6">
+            <label class="ui-label">Required query params <span class="optional">optional</span></label>
+            <input v-model="matchQuery" placeholder="page=2&sort=*" class="ui-input mono-input" spellcheck="false" />
           </div>
         </div>
+      </section>
 
-        <!-- method / status / delay / label -->
-        <div class="inline-group">
-          <div class="field-col">
-            <label class="field-label">Method</label>
-            <select v-model="method" class="select-field">
-              <option v-for="m in methods" :key="m">{{ m }}</option>
+      <!-- Response behaviour -->
+      <section class="form-card">
+        <div class="card-head">
+          <h3>Response behavior</h3>
+          <p>What the page receives when a request matches.</p>
+        </div>
+        <div class="grid">
+          <div class="field span-3">
+            <label class="ui-label">Status</label>
+            <input v-model.number="status" placeholder="200" class="ui-input mono-input" type="number" />
+          </div>
+          <div class="field span-3">
+            <label class="ui-label">Delay (ms)</label>
+            <input v-model.number="delay" placeholder="0" class="ui-input mono-input" type="number" min="0" />
+          </div>
+          <div class="field span-3">
+            <label class="ui-label">Behavior</label>
+            <select v-model="responseMode" class="ui-select" title="Mock response, or simulate a network error, a timeout (after the delay) or a request that never responds">
+              <option v-for="m in responseModes" :key="m.value" :value="m.value">{{ m.label }}</option>
             </select>
           </div>
-          <div class="field-col">
-            <label class="field-label">Status</label>
-            <input v-model.number="status" placeholder="200" class="input-field" type="number" />
+          <div class="field span-3">
+            <label class="ui-label">Content type</label>
+            <select v-model="contentType" class="ui-select">
+              <option v-for="t in contentTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
+            </select>
           </div>
-          <div class="field-col">
-            <label class="field-label">Delay (ms)</label>
-            <input v-model.number="delay" placeholder="0" class="input-field" type="number" min="0" />
+        </div>
+        <label class="check-row">
+          <input type="checkbox" v-model="templated" class="ui-checkbox" />
+          <span>
+            <strong>Dynamic response</strong> — render placeholders on every request:
+            <span class="token-list">
+              <code v-for="t in templateTokens" :key="t" v-text="t" />
+            </span>
+          </span>
+        </label>
+        <p v-if="method === 'WS'" class="hint ws-hint">
+          <Icon name="info" :size="13" />
+          WebSocket mock: the body is sent after connecting (a JSON array sends one message per item). With dynamic
+          responses on, each message the page sends gets a reply, with <code v-pre>{{body}}</code> set to that message.
+        </p>
+      </section>
+
+      <!-- Body / headers / variants -->
+      <section class="form-card editor-card">
+        <div class="tab-headers" role="tablist">
+          <button :class="['tab-btn', { active: activeTab === 'response' }]" @click="activeTab = 'response'" type="button">
+            <Icon name="inbox" :size="14" /> Response body
+          </button>
+          <button v-if="method !== 'GET'" :class="['tab-btn', { active: activeTab === 'request' }]" @click="activeTab = 'request'" type="button">
+            <Icon name="send" :size="14" /> Request body
+            <span v-if="matchBody" class="tab-badge">match</span>
+          </button>
+          <button :class="['tab-btn', { active: activeTab === 'headers' }]" @click="activeTab = 'headers'" type="button">
+            <Icon name="code" :size="14" /> Headers
+            <span v-if="activeHeaderCount > 0" class="tab-badge">{{ activeHeaderCount }}</span>
+          </button>
+          <button :class="['tab-btn', { active: activeTab === 'variants' }]" @click="activeTab = 'variants'" type="button">
+            <Icon name="layers" :size="14" /> Variants
+            <span v-if="variants.length > 0" class="tab-badge">{{ variants.length }}</span>
+          </button>
+        </div>
+
+        <!-- Response body -->
+        <div v-if="activeTab === 'response'" class="payload-section">
+          <div class="editor-toolbar">
+            <span class="toolbar-note">{{ responseIsJson ? "JSON" : (contentType || "No content type") }}{{ templated ? " · dynamic" : "" }}</span>
+            <div class="toolbar-actions">
+              <button @click="importPayload('response')" class="ui-btn ui-btn--ghost ui-btn--sm" type="button"><Icon name="download" :size="13" /> Import</button>
+              <button @click="prettifyPayload('response')" class="ui-btn ui-btn--ghost ui-btn--sm" type="button"><Icon name="sparkles" :size="13" /> Prettify</button>
+              <button @click="copyPayload('response')" class="ui-btn ui-btn--ghost ui-btn--sm" type="button"><Icon name="copy" :size="13" /> Copy</button>
+              <button @click="downloadPayload('response')" class="ui-btn ui-btn--ghost ui-btn--sm" type="button"><Icon name="upload" :size="13" /> Download</button>
+            </div>
           </div>
-          <div class="field-col">
-            <label class="field-label">Label</label>
-            <input v-model="label" placeholder="My API" class="input-field" />
+          <div :class="['editor', { error: responseValidationError }]">
+            <div class="line-numbers" ref="responseLineNumbersRef">{{ responseLineNumbers }}</div>
+            <textarea
+              spellcheck="false" autocorrect="off" autocomplete="off" autocapitalize="off"
+              ref="responseTextareaRef"
+              v-model="responsePayload"
+              @input="validateJson('response')"
+              @blur="validateJson('response')"
+              @scroll="syncScroll('response')"
+              :placeholder="responseIsJson ? '{ &quot;message&quot;: &quot;Hello&quot; }' : 'Response body'"
+              class="code-area"
+            />
+          </div>
+          <div v-if="responseValidationError" class="validation-error">
+            <Icon name="alert" :size="13" />
+            <span class="error-message">{{ responseValidationError }}</span>
           </div>
         </div>
 
-        <!-- payload + headers tabs -->
-        <div class="payload-tabs">
-          <div class="tab-headers">
-            <button :class="['tab-btn', { active: activeTab === 'response' }]" @click="activeTab = 'response'" type="button">📤 Response</button>
-            <button v-if="method !== 'GET'" :class="['tab-btn', { active: activeTab === 'request' }]" @click="activeTab = 'request'" type="button">📥 Request</button>
-            <button :class="['tab-btn', { active: activeTab === 'headers' }]" @click="activeTab = 'headers'" type="button">
-              🔧 Headers
-              <span v-if="activeHeaderCount > 0" class="header-badge">{{ activeHeaderCount }}</span>
-            </button>
+        <!-- Request body -->
+        <div v-if="activeTab === 'request'" class="payload-section">
+          <label class="check-row inline">
+            <input type="checkbox" v-model="matchBody" class="ui-checkbox" />
+            <span>Only match requests whose body contains this payload <span class="optional">JSON is compared as a subset</span></span>
+          </label>
+          <div class="editor-toolbar">
+            <span class="toolbar-note">JSON</span>
+            <div class="toolbar-actions">
+              <button @click="importPayload('request')" class="ui-btn ui-btn--ghost ui-btn--sm" type="button"><Icon name="download" :size="13" /> Import</button>
+              <button @click="prettifyPayload('request')" class="ui-btn ui-btn--ghost ui-btn--sm" type="button"><Icon name="sparkles" :size="13" /> Prettify</button>
+              <button @click="copyPayload('request')" class="ui-btn ui-btn--ghost ui-btn--sm" type="button"><Icon name="copy" :size="13" /> Copy</button>
+              <button @click="downloadPayload('request')" class="ui-btn ui-btn--ghost ui-btn--sm" type="button"><Icon name="upload" :size="13" /> Download</button>
+            </div>
           </div>
+          <div :class="['editor', { error: requestValidationError }]">
+            <div class="line-numbers" ref="requestLineNumbersRef">{{ requestLineNumbers }}</div>
+            <textarea
+              spellcheck="false" autocorrect="off" autocomplete="off" autocapitalize="off"
+              ref="requestTextareaRef"
+              v-model="requestPayload"
+              @input="validateJson('request')"
+              @blur="validateJson('request')"
+              @scroll="syncScroll('request')"
+              placeholder="Request JSON (optional)"
+              class="code-area"
+            />
+          </div>
+          <div v-if="requestValidationError" class="validation-error">
+            <Icon name="alert" :size="13" />
+            <span class="error-message">{{ requestValidationError }}</span>
+          </div>
+        </div>
 
-          <div class="tab-content">
-            <!-- Response tab -->
-            <div v-if="activeTab === 'response'" class="payload-section">
-              <div class="payload-actions">
-                <button @click="importPayload('response')" class="action-btn import-btn" type="button">📤 Import</button>
-                <button @click="prettifyPayload('response')" class="action-btn prettify-btn" type="button">✨ Prettify</button>
-                <button @click="copyPayload('response')" class="action-btn copy-btn" type="button">📋 Copy</button>
-                <button @click="downloadPayload('response')" class="action-btn download-btn" type="button">📥 Download</button>
-              </div>
-              <div class="textarea-wrapper">
-                <div class="line-numbers" ref="responseLineNumbersRef">{{ responseLineNumbers }}</div>
-                <textarea
-                  spellcheck="false" autocorrect="off" autocomplete="off" autocapitalize="off"
-                  ref="responseTextareaRef"
-                  v-model="responsePayload"
-                  @input="validateJson('response')"
-                  @blur="validateJson('response')"
-                  @scroll="syncScroll('response')"
-                  placeholder="Enter Response JSON (optional)"
-                  :class="['textarea-field', 'with-line-numbers', { error: responseValidationError }]"
-                />
-              </div>
-              <div v-if="responseValidationError" class="validation-error">
-                <span class="error-icon">⚠️</span>
-                <span class="error-message">{{ responseValidationError }}</span>
-              </div>
+        <!-- Headers -->
+        <div v-if="activeTab === 'headers'" class="panel">
+          <div class="panel-toolbar">
+            <span class="hint">Response headers. Unchecked rows are kept but not sent.</span>
+            <button @click="addHeaderRow" class="ui-btn ui-btn--sm" type="button"><Icon name="plus" :size="13" /> Add header</button>
+          </div>
+          <div class="headers-table">
+            <div class="headers-table-head">
+              <span></span>
+              <span>Name</span>
+              <span>Value</span>
+              <span></span>
             </div>
-
-            <!-- Request tab -->
-            <div v-if="activeTab === 'request'" class="payload-section">
-              <div class="payload-actions">
-                <button @click="importPayload('request')" class="action-btn import-btn" type="button">📤 Import</button>
-                <button @click="prettifyPayload('request')" class="action-btn prettify-btn" type="button">✨ Prettify</button>
-                <button @click="copyPayload('request')" class="action-btn copy-btn" type="button">📋 Copy</button>
-                <button @click="downloadPayload('request')" class="action-btn download-btn" type="button">📥 Download</button>
-              </div>
-              <div class="textarea-wrapper">
-                <div class="line-numbers" ref="requestLineNumbersRef">{{ requestLineNumbers }}</div>
-                <textarea
-                  spellcheck="false" autocorrect="off" autocomplete="off" autocapitalize="off"
-                  ref="requestTextareaRef"
-                  v-model="requestPayload"
-                  @input="validateJson('request')"
-                  @blur="validateJson('request')"
-                  @scroll="syncScroll('request')"
-                  placeholder="Enter Request JSON (optional)"
-                  :class="['textarea-field', 'with-line-numbers', { error: requestValidationError }]"
-                />
-              </div>
-              <div v-if="requestValidationError" class="validation-error">
-                <span class="error-icon">⚠️</span>
-                <span class="error-message">{{ requestValidationError }}</span>
-              </div>
-            </div>
-
-            <!-- Headers tab -->
-            <div v-if="activeTab === 'headers'" class="headers-panel">
-              <div class="headers-toolbar">
-                <span class="headers-hint">Unchecked headers are saved but not sent in responses.</span>
-                <button @click="addHeaderRow" class="add-header-btn" type="button">+ Add Header</button>
-              </div>
-
-              <div class="headers-table">
-                <div class="headers-table-head">
-                  <span class="col-check"></span>
-                  <span class="col-key">Key</span>
-                  <span class="col-value">Value</span>
-                  <span class="col-del"></span>
-                </div>
-
-                <div
-                  v-for="(row, index) in headerRows"
-                  :key="index"
-                  class="header-row"
-                  :class="{ 'row-disabled': !row.enabled }"
-                >
-                  <input
-                    type="checkbox"
-                    v-model="row.enabled"
-                    class="header-checkbox"
-                    title="Include this header in responses"
-                  />
-                  <input
-                    v-model="row.key"
-                    placeholder="Header name"
-                    class="header-key-input"
-                    spellcheck="false"
-                    :disabled="!row.enabled"
-                  />
-                  <input
-                    v-model="row.value"
-                    placeholder="Header value"
-                    class="header-value-input"
-                    spellcheck="false"
-                    :disabled="!row.enabled"
-                  />
-                  <button
-                    @click="removeHeaderRow(index)"
-                    class="remove-row-btn"
-                    type="button"
-                    title="Remove header"
-                  >✕</button>
-                </div>
-              </div>
+            <div
+              v-for="(row, index) in headerRows"
+              :key="index"
+              class="header-row"
+              :class="{ 'row-disabled': !row.enabled }"
+            >
+              <input type="checkbox" v-model="row.enabled" class="ui-checkbox" title="Include this header in responses" />
+              <input v-model="row.key" placeholder="X-Header-Name" class="ui-input mono-input" spellcheck="false" :disabled="!row.enabled" />
+              <input v-model="row.value" placeholder="value" class="ui-input mono-input" spellcheck="false" :disabled="!row.enabled" />
+              <button @click="removeHeaderRow(index)" class="ui-icon-btn" type="button" title="Remove header"><Icon name="x" :size="14" /></button>
             </div>
           </div>
         </div>
 
-        <div v-if="saveError" class="save-error">
-          <span class="error-icon">⚠️</span>
-          <span class="error-message">{{ saveError }}</span>
+        <!-- Variants -->
+        <div v-if="activeTab === 'variants'" class="panel">
+          <div class="panel-toolbar">
+            <div class="active-variant">
+              <label class="ui-label">Active response</label>
+              <select v-model="activeVariant" class="ui-select">
+                <option value="">Main response</option>
+                <option v-for="v in variants" :key="v.name" :value="v.name">{{ v.name }}</option>
+              </select>
+            </div>
+            <button @click="addVariant" class="ui-btn ui-btn--sm" type="button"><Icon name="plus" :size="13" /> Add variant</button>
+          </div>
+          <p v-if="!variants.length" class="empty-variants">
+            Variants are alternate responses (for example <code>empty</code> or <code>error</code>). Activate one here, or
+            switch every API in the collection at once with <strong>Scenario…</strong>.
+          </p>
+          <div v-for="(variant, index) in variants" :key="index" :class="['variant-card', { active: variant.name && variant.name === activeVariant }]">
+            <div class="variant-fields">
+              <div class="field">
+                <label class="ui-label">Name</label>
+                <input v-model="variant.name" class="ui-input" spellcheck="false" />
+              </div>
+              <div class="field narrow">
+                <label class="ui-label">Status</label>
+                <input v-model.number="variant.status" class="ui-input mono-input" type="number" />
+              </div>
+              <div class="field">
+                <label class="ui-label">Behavior</label>
+                <select v-model="variant.responseMode" class="ui-select">
+                  <option v-for="m in responseModes" :key="m.value" :value="m.value">{{ m.label }}</option>
+                </select>
+              </div>
+              <button @click="removeVariant(index)" class="ui-icon-btn remove-variant" type="button" title="Remove variant"><Icon name="trash" :size="14" /></button>
+            </div>
+            <textarea
+              v-model="variant.responsePayload"
+              class="ui-textarea variant-textarea"
+              spellcheck="false"
+              placeholder="Response body for this variant"
+            />
+          </div>
         </div>
-
-        <button @click="save" class="save-btn" :disabled="!isFormValid">
-          {{ isEdit ? "💾 Update API" : "💾 Save API" }}
-        </button>
-      </div>
+      </section>
     </div>
   </div>
 </template>
@@ -186,6 +266,9 @@ import { ref, computed, watch, nextTick, onMounted } from "vue";
 import { getApiById } from "../../db/apis.repo";
 import { getCollectionById } from "../../db/collections.repo";
 import { useApiForm } from "../scripts/useApiForm";
+import Icon from "./Icon.vue";
+
+const templateTokens = ["{{params.id}}", "{{query.page}}", "{{body.field}}", "{{now}}", "{{uuid}}", "{{random}}", "{{count}}"];
 
 const params = new URLSearchParams(window.location.search);
 const isEdit = params.get("mode") === "edit";
@@ -200,6 +283,9 @@ const fakeProps = { collectionId: collectionIdParam };
 const {
   label, url, method, status, delay, urlMatchType,
   requestPayload, responsePayload,
+  matchQuery, matchBody, responseMode, contentType, templated,
+  variants, activeVariant, responseModes, contentTypes, responseIsJson,
+  addVariant, removeVariant,
   headerRows, addHeaderRow, removeHeaderRow,
   activeTab, requestValidationError, responseValidationError,
   saveError, methods,
@@ -246,507 +332,492 @@ watch([requestPayload, responsePayload], async () => {
 
 <style scoped>
 .api-form-page {
-  min-height: 80dvh;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 32px 24px;
-  box-sizing: border-box;
-}
-
-.api-form-card {
-  background: var(--surface-bg);
-  border-radius: 14px;
-  width: 100%;
-  max-width: 900px;
-  display: flex;
-  flex-direction: column;
-  box-shadow: var(--card-shadow);
-  overflow: hidden;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
 }
 
 .page-header {
-  padding: 20px 24px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--surface-muted);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+
+.page-header-inner,
+.form-body {
+  max-width: 920px;
+  margin: 0 auto;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+.page-header-inner {
   display: flex;
-  gap: 16px;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
+  gap: 16px;
+  padding-top: 12px;
+  padding-bottom: 12px;
 }
 
 .header-info {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  gap: 10px;
 }
 
-.collection-tag {
-  display: inline-block;
-  background: var(--header-bg);
-  color: white;
-  padding: 3px 10px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  align-self: flex-start;
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-3);
+  font-size: 11.5px;
+  font-weight: 600;
 }
 
 .page-title {
-  margin: 0;
-  font-size: 20px;
+  margin: 1px 0 0;
+  font-size: 17px;
   font-weight: 700;
-  color: var(--text-main);
+  letter-spacing: -0.01em;
 }
 
-.cancel-btn {
-  padding: 7px 14px;
-  background: var(--surface-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  color: var(--text-body);
-  transition: all 0.2s;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.cancel-btn:hover {
-  background: #f8d7da;
-  border-color: #dc3545;
-  color: #721c24;
+.header-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .form-body {
-  padding: 20px 24px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
+  padding-top: 20px;
+  padding-bottom: 48px;
 }
 
-.field-label {
-  display: block;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-bottom: 5px;
+.form-card {
+  padding: 18px 20px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
 }
 
-.field-col {
-  display: flex;
-  flex-direction: column;
+.card-head {
+  margin-bottom: 14px;
 }
 
-.field-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
+.card-head h3 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 650;
 }
 
-.url-row {
-  display: flex;
-  gap: 10px;
-  align-items: flex-end;
+.card-head p {
+  margin: 2px 0 0;
+  color: var(--text-3);
+  font-size: 12px;
 }
 
-.url-row .field-col {
-  flex: 1;
-}
-
-.match-col {
-  flex: 0 0 90px !important;
-}
-
-.input-field {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 8px 10px;
-  border: 1px solid var(--field-border);
-  border-radius: 6px;
-  font-size: 13px;
-  background: var(--field-bg);
-  color: var(--field-text);
-  transition: border-color 0.2s;
-}
-
-.input-field:focus,
-.select-field:focus,
-.match-type-select:focus,
-.textarea-field:focus {
-  outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--focus-ring);
-}
-
-.match-type-select {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 8px 10px;
-  border: 1px solid var(--field-border);
-  border-radius: 6px;
-  font-size: 13px;
-  background: var(--field-bg);
-  color: var(--field-text);
-  cursor: pointer;
-}
-
-.inline-group {
+.grid {
   display: grid;
-  grid-template-columns: 14% 14% 18% 1fr;
-  gap: 10px;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 14px 14px;
 }
 
-.select-field {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 8px 10px;
-  border: 1px solid var(--field-border);
-  border-radius: 6px;
-  font-size: 13px;
-  background: var(--field-bg);
-  color: var(--field-text);
+.span-12 { grid-column: span 12; }
+.span-6 { grid-column: span 6; }
+.span-3 { grid-column: span 3; }
+
+@media (max-width: 640px) {
+  .span-6,
+  .span-3 {
+    grid-column: span 12;
+  }
+}
+
+.optional {
+  margin-left: 4px;
+  color: var(--text-3);
+  font-weight: 500;
+}
+
+.hint {
+  margin: 6px 0 0;
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+
+.hint code,
+.check-row code,
+.empty-variants code {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-size: 11px;
+}
+
+.mono-input {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+/* Method + URL + match type joined into one control */
+.url-control {
+  display: flex;
+  align-items: stretch;
+  height: 36px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.url-control:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.url-control select,
+.url-control input {
+  border: none;
+  background: transparent;
+  outline: none;
+}
+
+.method-select {
+  --m: var(--text-2);
+  width: 92px;
+  padding: 0 8px 0 12px;
+  border-right: 1px solid var(--border) !important;
+  background: color-mix(in srgb, var(--m) 10%, transparent) !important;
+  color: var(--m);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
   cursor: pointer;
 }
 
-/* ── Tabs ─────────────────────────────────── */
-.payload-tabs {
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
+.method-select.m-get { --m: var(--success-text); }
+.method-select.m-post { --m: var(--info-text); }
+.method-select.m-put { --m: var(--warning-text); }
+.method-select.m-patch { --m: #7c3aed; }
+.method-select.m-delete { --m: var(--danger-text); }
+
+.method-select option {
+  color: var(--text);
+  background: var(--surface);
+}
+
+.url-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0 12px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.match-select {
+  padding: 0 10px;
+  border-left: 1px solid var(--border) !important;
+  color: var(--text-2);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  font-size: 12.5px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+.check-row .ui-checkbox {
+  margin-top: 3px;
+}
+
+.check-row.inline {
+  margin: 0 0 12px;
+}
+
+.token-list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: 2px;
+  vertical-align: middle;
+}
+
+.ws-hint {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+  line-height: 1.55;
+}
+
+/* Editor card */
+.editor-card {
+  padding: 0;
   overflow: hidden;
-  background: var(--surface-bg);
 }
 
 .tab-headers {
   display: flex;
-  background: var(--surface-soft);
-  border-bottom: 1px solid var(--border-color);
+  gap: 2px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
 }
 
 .tab-btn {
-  flex: 1;
-  padding: 10px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-muted);
-  transition: all 0.2s;
-  border-bottom: 2px solid transparent;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
+  gap: 7px;
+  height: 42px;
+  padding: 0 12px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .tab-btn:hover {
-  background: var(--focus-ring);
-  color: var(--text-body);
+  color: var(--text);
 }
 
 .tab-btn.active {
-  background: var(--surface-bg);
-  color: var(--primary);
-  border-bottom-color: var(--primary);
+  border-bottom-color: var(--accent);
+  color: var(--text);
 }
 
-.header-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  background: var(--primary);
-  color: white;
-  border-radius: 9px;
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1;
+.tab-btn.active :deep(.icon) {
+  color: var(--accent);
 }
 
-/* ── Payload sections ─────────────────────── */
-.payload-section {
-  display: flex;
-  flex-direction: column;
+.tab-badge {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 10.5px;
+  line-height: 17px;
 }
 
-.payload-actions {
-  display: flex;
-  gap: 8px;
-  padding: 8px 12px;
-  background: var(--surface-muted);
-  border-bottom: 1px solid var(--border-color);
+.payload-section,
+.panel {
+  padding: 14px 16px 16px;
 }
 
-.action-btn {
-  padding: 5px 10px;
-  border: none;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  color: white;
-}
-
-.action-btn.import-btn   { background: #17a2b8; }
-.action-btn.prettify-btn { background: #6f42c1; }
-.action-btn.copy-btn     { background: var(--primary); }
-.action-btn.download-btn { background: #28a745; }
-
-.action-btn.import-btn:hover   { background: #138496; }
-.action-btn.prettify-btn:hover { background: #5a32a3; }
-.action-btn.copy-btn:hover     { background: #5568d3; }
-.action-btn.download-btn:hover { background: #218838; }
-
-.textarea-wrapper {
-  display: flex;
-  border: 1px solid var(--field-border);
-  border-radius: 6px;
-  overflow: hidden;
-  background: var(--field-bg);
-  transition: all 0.2s;
-  margin: 8px 12px 8px;
-  min-height: 200px;
-}
-
-.textarea-wrapper:has(.textarea-field:focus) {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--focus-ring);
-}
-
-.textarea-wrapper:has(.textarea-field.error) {
-  border-color: #dc3545;
-  background-color: rgba(220, 53, 69, 0.08);
-}
-
-.line-numbers {
-  background: var(--surface-muted);
-  color: var(--text-muted);
-  padding: 10px 8px;
-  font-family: "Courier New", monospace;
-  font-size: 13px;
-  line-height: 1.5;
-  text-align: right;
-  user-select: none;
-  border-right: 1px solid var(--border-color);
-  overflow-y: hidden;
-  white-space: pre;
-  min-width: 10px;
-}
-
-.textarea-field {
-  flex: 1;
-  padding: 10px 12px;
-  border: none;
-  font-size: 13px;
-  font-family: "Courier New", monospace;
-  resize: vertical;
-  background: var(--field-bg);
-  color: var(--field-text);
-  line-height: 1.5;
-}
-
-.textarea-field.with-line-numbers { border-radius: 0; }
-.textarea-field.error { color: var(--field-text); }
-
-.validation-error {
-  display: flex;
-  align-items: start;
-  gap: 8px;
-  padding: 8px 12px;
-  background: rgba(220, 53, 69, 0.12);
-  border: 1px solid rgba(220, 53, 69, 0.3);
-  border-radius: 6px;
-  margin: 0 12px 8px;
-  font-size: 12px;
-  color: var(--text-body);
-}
-
-/* ── Headers tab ──────────────────────────── */
-.headers-panel {
-  display: flex;
-  flex-direction: column;
-  padding: 12px;
-  gap: 10px;
-}
-
-.headers-toolbar {
+.editor-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
-.headers-hint {
-  font-size: 12px;
-  color: var(--text-muted);
-  font-style: italic;
-}
-
-.add-header-btn {
-  padding: 6px 14px;
-  background: var(--primary);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 12px;
+.toolbar-note {
+  color: var(--text-3);
+  font-size: 11.5px;
   font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  white-space: nowrap;
-  flex-shrink: 0;
 }
 
-.add-header-btn:hover {
-  opacity: 0.85;
-  transform: translateY(-1px);
+.toolbar-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.editor {
+  display: flex;
+  height: 340px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--code-bg);
+  overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.editor:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.editor.error {
+  border-color: var(--danger);
+}
+
+.line-numbers {
+  flex-shrink: 0;
+  min-width: 40px;
+  padding: 12px 8px 12px 12px;
+  overflow: hidden;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--code-gutter);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  text-align: right;
+  white-space: pre;
+  user-select: none;
+}
+
+.code-area {
+  flex: 1;
+  padding: 12px 14px;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: var(--code-text);
+  caret-color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre;
+  tab-size: 2;
+}
+
+.code-area::placeholder {
+  color: var(--code-gutter);
+}
+
+.validation-error,
+.save-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--danger-text);
+  font-size: 12px;
+}
+
+.validation-error {
+  margin-top: 8px;
+}
+
+.save-error {
+  padding: 10px 12px;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+  background: var(--danger-soft);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.panel-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.panel-toolbar .hint {
+  margin: 0;
 }
 
 .headers-table {
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   overflow: hidden;
 }
 
-.headers-table-head {
-  display: grid;
-  grid-template-columns: 32px 1fr 1fr 32px;
-  gap: 0;
-  padding: 8px 10px;
-  background: var(--surface-soft);
-  border-bottom: 1px solid var(--border-color);
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
+.headers-table-head,
 .header-row {
   display: grid;
-  grid-template-columns: 32px 1fr 1fr 32px;
-  gap: 0;
+  grid-template-columns: 28px 1fr 1.6fr 32px;
   align-items: center;
-  border-bottom: 1px solid var(--border-color);
-  transition: background 0.15s;
-}
-
-.header-row:last-child {
-  border-bottom: none;
-}
-
-.header-row:hover {
-  background: var(--surface-muted);
-}
-
-.header-row.row-disabled {
-  opacity: 0.45;
-}
-
-.header-checkbox {
-  justify-self: center;
-  width: 15px;
-  height: 15px;
-  cursor: pointer;
-  accent-color: var(--primary);
-}
-
-.header-key-input,
-.header-value-input {
-  padding: 9px 10px;
-  border: none;
-  border-left: 1px solid var(--border-color);
-  background: transparent;
-  color: var(--field-text);
-  font-size: 13px;
-  font-family: "Courier New", monospace;
-  width: 100%;
-  box-sizing: border-box;
-  transition: background 0.15s;
-}
-
-.header-key-input:focus,
-.header-value-input:focus {
-  outline: none;
-  background: var(--focus-ring);
-}
-
-.header-key-input:disabled,
-.header-value-input:disabled {
-  cursor: not-allowed;
-  color: var(--text-faint);
-}
-
-.remove-row-btn {
-  justify-self: center;
-  width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  border-radius: 50%;
-  color: var(--text-muted);
-  font-size: 11px;
-  cursor: pointer;
-  transition: all 0.15s;
-  line-height: 1;
-  padding: 0;
-}
-
-.remove-row-btn:hover {
-  background: #f8d7da;
-  color: #dc3545;
-}
-
-/* ── Save / error ─────────────────────────── */
-.error-icon  { font-size: 16px; flex-shrink: 0; }
-.error-message { flex: 1; word-break: break-word; line-height: 1.4; }
-
-.save-error {
-  display: flex;
-  align-items: start;
   gap: 8px;
-  padding: 10px 14px;
-  background: rgba(220, 53, 69, 0.12);
-  border: 1px solid rgba(220, 53, 69, 0.3);
-  border-radius: 6px;
-  font-size: 13px;
-  color: var(--text-body);
+  padding: 6px 8px 6px 10px;
 }
 
-.save-btn {
-  width: 100%;
+.headers-table-head {
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.header-row + .header-row {
+  border-top: 1px solid var(--border);
+}
+
+.header-row .ui-input {
+  height: 30px;
+}
+
+.row-disabled .ui-input {
+  opacity: 0.5;
+}
+
+.active-variant {
+  width: 240px;
+}
+
+.empty-variants {
+  margin: 4px 0 0;
+  padding: 16px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.variant-card {
   padding: 12px;
-  background: #28a745;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
-  margin-top: 4px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
 }
 
-.save-btn:hover:not(:disabled) {
-  background: #218838;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+.variant-card.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
-.save-btn:disabled {
-  background: #6c757d;
-  cursor: not-allowed;
-  opacity: 0.6;
-  box-shadow: none;
+.variant-fields {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.variant-fields .field {
+  flex: 1;
+}
+
+.variant-fields .field.narrow {
+  flex: 0 0 90px;
+}
+
+.remove-variant:hover {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.variant-textarea {
+  min-height: 100px;
+  background: var(--surface);
 }
 </style>

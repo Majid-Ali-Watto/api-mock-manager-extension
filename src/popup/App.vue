@@ -12,25 +12,42 @@
 
     <!-- Import tab: show a single button so the click counts as a user gesture -->
     <div v-else-if="isImportTab" class="import-tab-view">
-      <p class="import-tab-hint">Select the JSON file you want to import.</p>
-      <button class="import-tab-btn" @click="importFileRef.click()">📂 Select File(s)</button>
+      <div class="import-card">
+        <span class="import-icon"><Icon name="download" :size="22" /></span>
+        <h2>Import collections</h2>
+        <p class="import-tab-hint">Choose one or more exported JSON files. You can merge them into your data or replace everything.</p>
+        <button class="ui-btn ui-btn--primary ui-btn--lg" @click="importFileRef.click()">
+          <Icon name="file" :size="15" /> Select file(s)
+        </button>
+      </div>
       <input ref="importFileRef" type="file" accept=".json" multiple @change="handleTabFileImport" style="display:none" />
     </div>
 
     <template v-else-if="!isApiViewTab && !isApiFormTab && !isImportTab">
       <main>
-        <div class="top-bar">
+        <header class="top-bar">
+          <div v-if="!isCollectionFormOpen" class="brand" title="API Mock Manager">
+            <img src="/icon.svg" alt="" class="brand-logo" />
+            <span class="brand-name">API Mock</span>
+          </div>
           <SearchBar v-if="!isCollectionFormOpen" v-model="searchQuery" @clear="searchQuery = ''" />
           <AddCollection @collectionAdded="refreshCollections" @formToggled="handleFormToggle" />
-          <ActionButtons v-if="!isCollectionFormOpen" :theme="theme" @export="exportData" @import="importData"
-            @toggleInfo="toggleSidebar" @toggleTheme="toggleTheme" />
-        </div>
+          <ActionButtons v-if="!isCollectionFormOpen" :theme="theme" :mocks-enabled="mocksEnabled"
+            @export="exportData" @import="importData"
+            @toggleInfo="toggleSidebar" @toggleTheme="toggleTheme"
+            @toggleMocks="toggleMocks" @toggleLog="logOpen = !logOpen" />
+        </header>
 
-        <hr />
+        <div v-if="!mocksEnabled" class="mocks-off-banner">
+          <Icon name="power" :size="14" />
+          <span>All mocks are off — pages get real responses.</span>
+          <button class="ui-btn ui-btn--sm" @click="toggleMocks">Turn on</button>
+        </div>
 
         <CollectionList ref="collectionListRef" :search-query="searchQuery" :focus-collection-id="focusCollectionId" :tab-mode="isCollectionTab" />
 
         <InfoSidebar :is-open="sidebarOpen" @close="closeSidebar" />
+        <RequestLog :is-open="logOpen" @close="logOpen = false" />
       </main>
 
     </template>
@@ -42,7 +59,7 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, watch, onMounted, onUnmounted } from "vue";
 import { useToast } from "./composables/useToast";
 import SearchBar from "./components/SearchBar.vue";
 import ActionButtons from "./components/ActionButtons.vue";
@@ -54,6 +71,8 @@ import ConfirmDialog from "./components/ConfirmDialog.vue";
 import PromptDialog from "./components/PromptDialog.vue";
 import ApiDetailPage from "./components/ApiDetailPage.vue";
 import ApiFormPage from "./components/ApiFormPage.vue";
+import RequestLog from "./components/RequestLog.vue";
+import Icon from "./components/Icon.vue";
 import { useCollectionsImportExport } from "./scripts/useCollectionsImportExport";
 
 const params = new URLSearchParams(window.location.search);
@@ -70,6 +89,51 @@ const searchQuery = ref("");
 const isCollectionFormOpen = ref(false);
 const sidebarOpen = ref(false);
 const theme = ref(localStorage.getItem("api-mock-theme") || "current");
+// Tokens live on :root (see styles/base.css) so teleported dialogs are themed too.
+watch(theme, (value) => {
+  document.documentElement.dataset.theme = value === "dark" ? "dark" : "light";
+}, { immediate: true });
+const mocksEnabled = ref(true);
+const logOpen = ref(false);
+const hasExtensionApi = typeof chrome !== "undefined" && !!chrome?.runtime?.sendMessage;
+
+async function loadSettings() {
+  if (!hasExtensionApi) return;
+  try {
+    const response = await chrome.runtime.sendMessage({ type: "GET_SETTINGS" });
+    mocksEnabled.value = response?.settings?.mocksEnabled !== false;
+  } catch {
+    // background not ready
+  }
+}
+
+async function toggleMocks() {
+  if (!hasExtensionApi) return;
+  const next = !mocksEnabled.value;
+  mocksEnabled.value = next;
+  try {
+    await chrome.runtime.sendMessage({ type: "SET_MOCKS_ENABLED", enabled: next });
+    showToast(next ? "Mocks turned on" : "All mocks turned off");
+  } catch (err) {
+    mocksEnabled.value = !next;
+    showToast("Could not change mock state: " + err.message, "error");
+  }
+}
+
+function handleRuntimeMessage(message) {
+  if (message.type === "SETTINGS_UPDATED") {
+    mocksEnabled.value = message.settings?.mocksEnabled !== false;
+  }
+}
+
+onMounted(() => {
+  loadSettings();
+  if (hasExtensionApi) chrome.runtime.onMessage.addListener(handleRuntimeMessage);
+});
+
+onUnmounted(() => {
+  if (hasExtensionApi) chrome.runtime.onMessage.removeListener(handleRuntimeMessage);
+});
 
 const { exportData, importData, processFilesImport } = useCollectionsImportExport({
   onRefresh: refreshCollections,
@@ -113,92 +177,16 @@ function toggleTheme() {
 </script>
 
 <style scoped>
-/* Hide scrollbar but keep functionality */
-* {
-  scrollbar-width: none;
-  /* Firefox */
-  -ms-overflow-style: none;
-  /* IE and Edge */
-}
-
-*::-webkit-scrollbar {
-  display: none;
-  /* Chrome, Safari, Opera */
-}
-
 .app {
-  --app-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --app-border: #764ba2;
-  --header-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --panel-bg: #F9F6EE;
-  --surface-bg: #ffffff;
-  --surface-muted: #f8f9fa;
-  --surface-soft: #EFEFEF;
-  --text-main: #212529;
-  --text-body: #495057;
-  --text-muted: #6c757d;
-  --text-faint: #999999;
-  --border-color: #dee2e6;
-  --border-soft: #e9ecef;
-  --field-bg: #ffffff;
-  --field-text: #333333;
-  --field-border: #ced4da;
-  --button-bg: rgba(255, 255, 255, 0.95);
-  --button-hover-bg: #ffffff;
-  --primary: #667eea;
-  --focus-ring: rgba(102, 126, 234, 0.1);
-  --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  --menu-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  --code-bg: #212529;
-  --code-text: #f8f9fa;
-  --search-match-bg: #fff3cd;
-  --search-match-border: #ffc107;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
-  background: var(--app-bg);
-  color: #fff;
-  border: 1px solid var(--app-border);
-  overflow-y: auto;
+  background: var(--bg);
+  color: var(--text);
   position: relative;
   isolation: isolate;
-  opacity: 1;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-.app.theme-dark {
-  --app-bg: linear-gradient(135deg, #111827 0%, #0f172a 100%);
-  --app-border: #263142;
-  --header-bg: linear-gradient(135deg, #1f2937 0%, #111827 100%);
-  --panel-bg: #0b1120;
-  --surface-bg: #111827;
-  --surface-muted: #172033;
-  --surface-soft: #223047;
-  --text-main: #f8fafc;
-  --text-body: #d5dde8;
-  --text-muted: #9aa8ba;
-  --text-faint: #7f8ea3;
-  --border-color: #2b384c;
-  --border-soft: #263142;
-  --field-bg: #0f172a;
-  --field-text: #f8fafc;
-  --field-border: #35445b;
-  --button-bg: #1f2937;
-  --button-hover-bg: #2b384c;
-  --primary: #60a5fa;
-  --focus-ring: rgba(96, 165, 250, 0.18);
-  --card-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
-  --menu-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
-  --code-bg: #020617;
-  --code-text: #e5edf7;
-  --search-match-bg: #3b3213;
-  --search-match-border: #d7a520;
 }
 
 main {
   display: flex;
   flex-direction: column;
-  min-height: 500px;
 }
 
 .app:not(.tab-mode) main {
@@ -207,13 +195,11 @@ main {
 }
 
 .app.tab-mode {
-  overflow-y: visible;
   min-height: 100dvh;
 }
 
 .app.tab-mode main {
   width: 100%;
-  min-width: 100%;
   min-height: 100dvh;
 }
 
@@ -223,48 +209,98 @@ main {
 }
 
 .top-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  padding: 12px 20px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
 }
 
-hr {
-  margin: 0;
-  border: none;
-  height: 1px;
-  background: rgba(255, 255, 255, 0.2);
+.app.tab-mode .top-bar {
+  padding: 12px max(16px, calc((100% - 960px) / 2));
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.brand-logo {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+}
+
+.brand-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.mocks-off-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 14px 0;
+  padding: 8px 10px 8px 12px;
+  border: 1px solid var(--warning);
+  border-radius: var(--radius);
+  background: var(--warning-soft);
+  color: var(--warning-text);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.mocks-off-banner span {
+  flex: 1;
 }
 
 .import-tab-view {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 20px;
-  min-height: 200px;
-  height: 100dvh;
+  min-height: 100dvh;
+  padding: 24px;
+}
+
+.import-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 380px;
+  padding: 32px 28px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.import-card h2 {
+  margin: 4px 0 0;
+  font-size: 17px;
+}
+
+.import-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .import-tab-hint {
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 14px;
-  margin: 0;
-}
-
-.import-tab-btn {
-  padding: 12px 28px;
-  background: var(--primary);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.2s ease;
-}
-
-.import-tab-btn:hover {
-  opacity: 0.85;
+  margin: 0 0 8px;
+  color: var(--text-2);
+  font-size: 13px;
 }
 </style>

@@ -7,6 +7,7 @@ import {
   reorderCollectionApis,
   duplicateApi,
   addApi,
+  updateApi,
 } from "../../db/apis.repo";
 import {
   getCollections,
@@ -14,7 +15,10 @@ import {
   deleteCollection as deleteCollectionFromDB,
   toggleCollectionEnabled,
   toggleCollectionPinned,
+  updateCollectionSites,
 } from "../../db/collections.repo";
+import { parseSitePatterns } from "../../utils/siteMatcher";
+import { toExportApi, sanitizeImportedApi } from "../utils/apiSchema";
 import {
   downloadJson,
   notifyContentScripts,
@@ -42,6 +46,7 @@ export function useCollectionList(props) {
   const { showPrompt } = usePromptDialog();
 
   const collections = ref([]);
+  const recording = ref(null); // { collectionId, tabId } while recording
   const apis = ref({});
   const hitCounts = ref({ apis: {}, collections: {} });
   const apiFileInput = ref(null);
@@ -230,6 +235,106 @@ export function useCollectionList(props) {
     await loadCollections();
   }
 
+  async function editCollectionSites(collection) {
+    openMenuCollectionId.value = null;
+    const current = (collection.sites || []).join(", ") || "*";
+    const input = await showPrompt(
+      "Sites this collection's mocks apply to (comma separated).\nExamples: localhost:3000, *.example.com — use * for all sites:",
+      current
+    );
+    if (input === null || input === current) return;
+
+    const { sites, invalid } = parseSitePatterns(input);
+    if (invalid.length) {
+      showToast(`Invalid site pattern(s): ${invalid.join(", ")}`, "error", 5000);
+      return;
+    }
+    await updateCollectionSites(collection.id, sites);
+    await loadCollections();
+    notifyContentScripts();
+    showToast(
+      sites.length
+        ? `"${collection.name}" now applies to: ${sites.join(", ")}`
+        : `"${collection.name}" now applies to all sites`
+    );
+  }
+
+  async function loadSettings() {
+    if (typeof chrome === "undefined" || !chrome?.runtime?.sendMessage) return;
+    try {
+      const response = await chrome.runtime.sendMessage({ type: "GET_SETTINGS" });
+      recording.value = response?.settings?.recording || null;
+    } catch {
+      // extension APIs unavailable (dev mode)
+    }
+  }
+
+  // Records real responses from the active tab into this collection (saved disabled).
+  async function toggleRecording(collection) {
+    openMenuCollectionId.value = null;
+    try {
+      if (recording.value?.collectionId === collection.id) {
+        await chrome.runtime.sendMessage({ type: "STOP_RECORDING" });
+        recording.value = null;
+        showToast("Recording stopped");
+        return;
+      }
+      if (props.tabMode) {
+        showToast("Open the extension popup on the page you want to record.", "error", 5000);
+        return;
+      }
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab?.id || tab.id < 0) {
+        showToast("No active tab to record.", "error");
+        return;
+      }
+      await chrome.runtime.sendMessage({ type: "START_RECORDING", collectionId: collection.id, tabId: tab.id });
+      recording.value = { collectionId: collection.id, tabId: tab.id };
+      const scope = collection.sites?.length ? ` on ${collection.sites.join(", ")}` : "";
+      showToast(
+        `Recording the current tab${scope} into "${collection.name}". New mocks are saved disabled — enable them when ready.`,
+        "success",
+        6000
+      );
+    } catch (err) {
+      showToast("Could not change recording: " + err.message, "error");
+    }
+  }
+
+  // Activates one variant name across every API in the collection ("main" = default).
+  async function switchCollectionScenario(collection) {
+    openMenuCollectionId.value = null;
+    const list = apis.value[collection.id] || [];
+    const names = [...new Set(list.flatMap((a) => (a.variants || []).map((v) => v.name)))];
+    if (!names.length) {
+      showToast("No API in this collection has variants yet. Add them in the API form (🎭 Variants).", "error", 5000);
+      return;
+    }
+    const actives = [...new Set(list.map((a) => a.activeVariant || ""))];
+    const current = actives.length === 1 && actives[0] ? actives[0] : "main";
+    const input = await showPrompt(
+      `Activate a variant on every API in "${collection.name}".\nAvailable: ${names.join(", ")}\nType "main" for the main responses:`,
+      current
+    );
+    if (input === null) return;
+    const target = input.trim().toLowerCase() === "main" ? "" : input.trim();
+    if (target && !names.includes(target)) {
+      showToast(`No variant named "${target}".`, "error");
+      return;
+    }
+    let changed = 0;
+    for (const api of list) {
+      const next = target && (api.variants || []).some((v) => v.name === target) ? target : "";
+      if ((api.activeVariant || "") !== next) {
+        await updateApi(api.id, { activeVariant: next });
+        changed++;
+      }
+    }
+    await loadApis(collection.id);
+    notifyContentScripts();
+    showToast(`Scenario "${target || "main"}" active (${changed} API(s) changed)`);
+  }
+
   async function deleteCollection(collectionId) {
     openMenuCollectionId.value = null;
     const ok = await showConfirm(
@@ -270,21 +375,7 @@ export function useCollectionList(props) {
     await loadCollections();
   }
 
-  function buildApiExportJson(api) {
-    return {
-      label: api.label,
-      method: api.method,
-      url: api.url,
-      status: api.status,
-      requestPayload: api.requestPayload,
-      responsePayload: api.responsePayload,
-      responseHeaders: api.responseHeaders || "",
-      delay: api.delay || 0,
-      urlMatchType: api.urlMatchType || "auto",
-      enabled: api.enabled,
-      createdAt: api.createdAt,
-    };
-  }
+  const buildApiExportJson = toExportApi;
 
   async function copyApiAsJson(api) {
     openMenuApiId.value = null;
@@ -350,6 +441,7 @@ export function useCollectionList(props) {
             name: collection.name,
             enabled: collection.enabled,
             createdAt: collection.createdAt,
+            sites: collection.sites || [],
             apis: apiList.map(buildApiExportJson),
           },
         ],
@@ -384,6 +476,7 @@ export function useCollectionList(props) {
             name: collection.name,
             enabled: collection.enabled,
             createdAt: collection.createdAt,
+            sites: collection.sites || [],
             apis: apiList.map(buildApiExportJson),
           });
         }
@@ -418,6 +511,7 @@ export function useCollectionList(props) {
             name: collection.name,
             enabled: collection.enabled,
             createdAt: collection.createdAt,
+            sites: collection.sites || [],
             apis: selectedApisList.map(buildApiExportJson),
           },
         ],
@@ -448,10 +542,10 @@ export function useCollectionList(props) {
 
     try {
       const text = await file.text();
-      const apiData = JSON.parse(text);
+      const apiData = sanitizeImportedApi(JSON.parse(text));
 
-      if (!apiData.label || !apiData.method || !apiData.url) {
-        showToast("Invalid API file: missing label, method, or url.", "error");
+      if (!apiData) {
+        showToast("Invalid API file: missing or invalid method or url.", "error");
         return;
       }
 
@@ -461,19 +555,8 @@ export function useCollectionList(props) {
         return;
       }
 
-      await addApi({
-        collectionId,
-        label: apiData.label,
-        method: apiData.method,
-        url: apiData.url,
-        status: apiData.status || 200,
-        requestPayload: apiData.requestPayload || "",
-        responsePayload: apiData.responsePayload || "",
-        responseHeaders: apiData.responseHeaders || "",
-        delay: apiData.delay || 0,
-        urlMatchType: apiData.urlMatchType || "auto",
-        enabled: apiData.enabled !== undefined ? apiData.enabled : true,
-      });
+      await addApi({ ...apiData, collectionId });
+      notifyContentScripts();
 
       await loadApis(collectionId);
       showToast(`API "${apiData.label}" imported`);
@@ -535,12 +618,17 @@ export function useCollectionList(props) {
   const handleRuntimeMessage = (message) => {
     if (message.type === "HIT_COUNTS_UPDATED" && message.hitCounts) {
       hitCounts.value = message.hitCounts;
+    } else if (message.type === "SETTINGS_UPDATED") {
+      recording.value = message.settings?.recording || null;
+    } else if (message.type === "API_RECORDED" && message.collectionId) {
+      loadApis(message.collectionId);
     }
   };
 
   onMounted(async () => {
     await loadCollections();
     await loadHitCounts();
+    await loadSettings();
     document.addEventListener("click", handleDocumentClick);
 
     if (typeof chrome !== "undefined" && chrome?.runtime?.onMessage) {
@@ -594,6 +682,10 @@ export function useCollectionList(props) {
     loadCollections,
     loadApis,
     startRenameCollection,
+    editCollectionSites,
+    recording,
+    toggleRecording,
+    switchCollectionScenario,
     deleteCollection,
     toggleCollectionEnabledStatus,
     toggleAllCollectionsEnabled,

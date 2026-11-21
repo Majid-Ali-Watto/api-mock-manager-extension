@@ -1,14 +1,18 @@
 <template>
   <Teleport to="body">
-    <div v-if="state.visible" class="confirm-overlay" @click.self="onCancel">
-      <div class="confirm-dialog">
-        <p class="confirm-message">{{ state.message }}</p>
-        <div class="confirm-actions">
-          <button class="confirm-cancel-btn" @click="onCancel">
+    <div v-if="state.visible" class="dialog-overlay" @click.self="onCancel" @keyup.esc="onCancel">
+      <div class="dialog" role="alertdialog" aria-modal="true">
+        <div :class="['dialog-icon', { danger: state.dangerous }]">
+          <Icon :name="state.dangerous ? 'alert' : 'info'" :size="18" />
+        </div>
+        <p class="dialog-message">{{ state.message }}</p>
+        <div class="dialog-actions">
+          <button class="ui-btn" @click="onCancel">
             {{ state.cancelLabel }}
           </button>
           <button
-            :class="['confirm-ok-btn', { dangerous: state.dangerous }]"
+            ref="okRef"
+            :class="['ui-btn', state.dangerous ? 'ui-btn--danger-solid' : 'ui-btn--primary']"
             @click="onConfirm"
           >
             {{ state.confirmLabel }}
@@ -20,77 +24,74 @@
 </template>
 
 <script setup>
+import { ref, watch, nextTick } from "vue";
 import { useConfirm } from "../composables/useConfirm";
+import Icon from "./Icon.vue";
+
 const { state, onConfirm, onCancel } = useConfirm();
+const okRef = ref(null);
+
+watch(
+  () => state.visible,
+  async (visible) => {
+    if (visible) {
+      await nextTick();
+      okRef.value?.focus();
+    }
+  }
+);
 </script>
 
-<style>
-.confirm-overlay {
+<style scoped>
+.dialog-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  z-index: 3000;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9998;
+  padding: 16px;
+  background: var(--overlay);
+  animation: ui-fade 0.12s ease;
 }
 
-.confirm-dialog {
-  background: var(--surface-bg, #fff);
-  border-radius: 12px;
-  padding: 24px;
-  max-width: 420px;
-  width: 90%;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+.dialog {
+  width: min(380px, 100%);
+  padding: 20px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  animation: ui-pop 0.15s ease;
 }
 
-.confirm-message {
-  margin: 0 0 20px;
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--text-body, #333);
+.dialog-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.dialog-icon.danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.dialog-message {
+  margin: 0 0 18px;
+  font-size: 13.5px;
+  line-height: 1.55;
   white-space: pre-line;
 }
 
-.confirm-actions {
+.dialog-actions {
   display: flex;
-  gap: 10px;
   justify-content: flex-end;
-}
-
-.confirm-cancel-btn {
-  padding: 8px 18px;
-  background: var(--surface-soft, #e9ecef);
-  color: var(--text-body, #333);
-  border: none;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.confirm-cancel-btn:hover {
-  background: var(--border-color, #dee2e6);
-}
-
-.confirm-ok-btn {
-  padding: 8px 18px;
-  background: var(--primary, #667eea);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-.confirm-ok-btn:hover {
-  opacity: 0.85;
-}
-
-.confirm-ok-btn.dangerous {
-  background: #dc3545;
+  gap: 8px;
 }
 </style>

@@ -1,104 +1,108 @@
 <template>
-  <div v-if="isOpen" class="sidebar-overlay" @click="close">
-    <div class="sidebar" @click.stop>
-      <div class="sidebar-header">
-        <h3>📱 API Mock Extension</h3>
-        <button @click="close" class="sidebar-close-btn">✕</button>
+  <div v-if="isOpen" class="ui-overlay" @click="close">
+    <aside class="ui-sheet sidebar" @click.stop>
+      <div class="ui-sheet-header">
+        <h3>
+          <img src="/icon.svg" alt="" class="sheet-logo" />
+          API Mock Manager
+          <span class="ui-chip">v1.0.0</span>
+        </h3>
+        <button @click="close" class="ui-icon-btn sidebar-close-btn" title="Close">
+          <Icon name="x" />
+        </button>
       </div>
+
       <div class="sidebar-content">
-        <section class="info-section">
-          <h4>🎯 About</h4>
-          <p>
-            A powerful Chrome extension for mocking API responses during
-            development and testing. Intercept HTTP requests and return custom
-            responses without modifying your backend.
-          </p>
-        </section>
+        <p class="lead">
+          Mock API responses in the browser for development and testing — no backend changes needed.
+        </p>
 
         <section class="info-section">
-          <h4>✨ Features</h4>
-          <ul>
-            <li>📦 Organize APIs into collections</li>
-            <li>🔄 Support for GET, POST, PUT, PATCH, DELETE</li>
-            <li>⚡ Enable/disable APIs and collections instantly</li>
-            <li>🔍 Global and per-collection search</li>
-            <li>📥 Import/Export functionality</li>
-            <li>📋 Copy & download API configurations</li>
-            <li>🎨 Clean and intuitive interface</li>
+          <h4>Features</h4>
+          <ul class="feature-list">
+            <li v-for="f in features" :key="f.text">
+              <span class="feature-icon"><Icon :name="f.icon" :size="14" /></span>
+              <span>{{ f.text }}</span>
+            </li>
           </ul>
         </section>
 
         <section class="info-section">
-          <h4>🚀 Quick Start</h4>
-          <ol>
-            <li>Create a new collection</li>
+          <h4>Quick start</h4>
+          <ol class="steps">
+            <li>Create a collection with <strong>New</strong></li>
             <li>Add APIs with URL patterns and mock responses</li>
-            <li>Enable the collection and APIs</li>
-            <li>Refresh your web page to see mocked responses</li>
+            <li>Optionally limit the collection to your dev sites</li>
+            <li>Reload your page — matching requests are mocked</li>
           </ol>
         </section>
 
         <section class="info-section">
-          <h4>💡 Tips</h4>
-          <ul>
-            <li>Use wildcards (*) in URLs for flexible matching</li>
-            <li>Disable APIs/collections without deleting them</li>
-            <li>Export collections to share with your team</li>
-            <li>Use search to quickly find specific APIs</li>
+          <h4>Tips</h4>
+          <ul class="tips">
+            <li>Use <code>*</code> wildcards or <code>/users/:id</code> params in URLs</li>
+            <li>Toggle every mock with <span class="ui-kbd">Alt</span> + <span class="ui-kbd">Shift</span> + <span class="ui-kbd">M</span></li>
+            <li>Switch a whole collection to an error scenario with <strong>Scenario…</strong></li>
+            <li>Export collections to share them with your team</li>
           </ul>
         </section>
 
         <section class="info-section">
-          <h4>📖 Version</h4>
-          <p>v1.0.0</p>
-        </section>
-
-        <section class="info-section">
-          <h4>🔗 Support</h4>
-          <p>
-            For issues or feature requests, please visit our GitHub repository.
-          </p>
+          <h4>Privacy &amp; terms</h4>
+          <p class="muted">All data stays in your browser. Nothing is collected or sent anywhere.</p>
+          <div class="link-row">
+            <a href="privacy.html" target="_blank" rel="noopener noreferrer" class="ui-btn ui-btn--sm">
+              <Icon name="shield" :size="13" /> Privacy Policy
+            </a>
+            <a href="terms.html" target="_blank" rel="noopener noreferrer" class="ui-btn ui-btn--sm">
+              <Icon name="file" :size="13" /> Terms of Use
+            </a>
+          </div>
         </section>
 
         <section class="info-section developer-section">
-          <h4>👨‍💻 Developer</h4>
-          <p class="developer-name">Majid Ali</p>
-          <p>Full Stack Web Developer</p>
-          <div class="developer-links">
-            <a
-              href="https://majidev.netlify.app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Portfolio
+          <div class="developer-head">
+            <span class="avatar">MA</span>
+            <div>
+              <p class="developer-name">Majid Ali</p>
+              <p class="muted">Full Stack Developer · Vue.js · Nuxt.js · React · Python · FastAPI</p>
+            </div>
+          </div>
+          <div class="link-row">
+            <a href="https://majidev.netlify.app" target="_blank" rel="noopener noreferrer" class="ui-btn ui-btn--sm">
+              <Icon name="link" :size="13" /> Portfolio
+            </a>
+            <a href="https://github.com/Majid-Ali-Watto" target="_blank" rel="noopener noreferrer" class="ui-btn ui-btn--sm">
+              <Icon name="github" :size="13" /> GitHub
             </a>
             <a
-              href="https://github.com/Majid-Ali-Watto"
+              href="https://github.com/Majid-Ali-Watto/api-mock-manager-extension/issues"
               target="_blank"
               rel="noopener noreferrer"
+              class="ui-btn ui-btn--sm"
             >
-              GitHub
+              <Icon name="alert" :size="13" /> Report issue
             </a>
           </div>
         </section>
 
         <section class="info-section danger-zone">
-          <h4>⚠️ Clear Cache</h4>
-          <p class="warning-text">
-            Clear localStorage cache (form data, etc.). This won't delete your
-            APIs or collections.
-          </p>
-          <button @click="clearCache" class="danger-btn">
-            🗑️ Clear Cache
+          <div>
+            <h4>Clear cached drafts</h4>
+            <p class="muted">Removes unsaved form drafts. Your collections and APIs are not affected.</p>
+          </div>
+          <button @click="clearCache" class="ui-btn ui-btn--sm ui-btn--danger danger-btn">
+            <Icon name="broom" :size="13" /> Clear Cache
           </button>
         </section>
       </div>
-    </div>
+    </aside>
   </div>
 </template>
 
 <script setup>
 import { useToast } from "../composables/useToast";
+import Icon from "./Icon.vue";
 import { useConfirm } from "../composables/useConfirm";
 
 const props = defineProps({
@@ -109,6 +113,16 @@ const props = defineProps({
 });
 
 const emit = defineEmits(["close"]);
+
+const features = [
+  { icon: "folder", text: "Collections, each limited to the sites you choose" },
+  { icon: "code", text: "fetch, XHR, sendBeacon, EventSource and WebSocket" },
+  { icon: "layers", text: "Variants, scenarios and dynamic responses" },
+  { icon: "alert", text: "Simulate errors, timeouts and hanging requests" },
+  { icon: "record", text: "Record real responses into a collection" },
+  { icon: "log", text: "Request log and a global on/off switch" },
+  { icon: "upload", text: "Import and export to share with your team" },
+];
 
 const { showToast } = useToast();
 const { showConfirm } = useConfirm();
@@ -142,202 +156,172 @@ async function clearCache() {
 </script>
 
 <style scoped>
-/* Sidebar Styles */
-.sidebar-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 2000;
-  animation: fadeIn 0.2s ease;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
 .sidebar {
-  position: fixed;
-  top: 0;
-  right: 0;
-  width: 320px;
-  height: 100%;
-  background: var(--surface-bg);
-  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
-  animation: slideInRight 0.3s ease;
-  overflow-y: auto;
-  z-index: 2001;
+  width: 340px;
 }
 
-@keyframes slideInRight {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
-.sidebar-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px;
-  background: var(--header-bg);
-  color: white;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.2);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-.sidebar-header h3 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.sidebar-close-btn {
-  background: rgba(255, 255, 255, 0.2);
-  border: none;
-  color: white;
-  font-size: 12px;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 50%;
-  transition: all 0.2s ease;
-  line-height: 1;
-}
-
-.sidebar-close-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: rotate(90deg);
+.sheet-logo {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
 }
 
 .sidebar-content {
-  padding: 20px;
-  color: var(--text-main);
+  padding: 14px 16px 20px;
+}
+
+.lead {
+  margin: 0 0 16px;
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.6;
 }
 
 .info-section {
-  margin-bottom: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border-soft);
-}
-
-.info-section:last-child {
-  border-bottom: none;
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
 }
 
 .info-section h4 {
-  margin: 0 0 12px 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--primary);
-}
-
-.info-section p {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--text-body);
-}
-
-.info-section ul,
-.info-section ol {
-  margin: 8px 0 0 0;
-  padding-left: 12px;
-}
-
-.info-section li {
-  margin-bottom: 8px;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--text-body);
-}
-
-.developer-section {
-  background: var(--surface-muted);
- border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  padding: 14px;
-}
-
-.developer-name {
+  margin: 0 0 10px;
+  color: var(--text-3);
+  font-size: 11px;
   font-weight: 700;
-  color: var(--text-main) !important;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
-.developer-links {
+.muted {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.feature-list,
+.tips {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.feature-list li {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  font-size: 12.5px;
+}
+
+.feature-icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.steps li {
+  position: relative;
+  padding: 3px 0 3px 30px;
+  font-size: 12.5px;
+  counter-increment: step;
+}
+
+.steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 2px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.tips li {
+  position: relative;
+  padding: 3px 0 3px 14px;
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+
+.tips li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 11px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+
+.tips code {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  font-size: 11.5px;
+}
+
+.link-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
   margin-top: 10px;
 }
 
-.developer-links a {
-  flex: 1;
-  padding: 7px 10px;
-  background: var(--button-bg);
-  color: var(--primary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  text-align: center;
+.link-row a {
   text-decoration: none;
-  transition: all 0.2s ease;
 }
 
-.developer-links a:hover {
-  background: var(--button-hover-bg);
-  transform: translateY(-1px);
+.developer-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #7c3aed);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.developer-name {
+  margin: 0;
+  font-weight: 650;
 }
 
 .danger-zone {
-  background: rgba(229, 62, 62, 0.12);
-  padding: 16px;
-  border: 1px solid #feb2b2;
-  border-radius: 8px;
-  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .danger-zone h4 {
-  color: #c53030;
-}
-
-.warning-text {
-  color: #742a2a;
-  font-size: 12px;
-  margin-bottom: 12px;
-}
-
-.danger-btn {
-  width: 100%;
-  padding: 10px;
-  background: #e53e3e;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  transition: all 0.2s ease;
-}
-
-.danger-btn:hover {
-  background: #c53030;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(229, 62, 62, 0.3);
-}
-
-.danger-btn:active {
-  transform: translateY(0);
+  margin-bottom: 4px;
 }
 </style>

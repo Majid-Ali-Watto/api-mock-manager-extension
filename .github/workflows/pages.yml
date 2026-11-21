@@ -1,0 +1,46 @@
+# Publishes the privacy policy and terms to GitHub Pages so they can be used as the
+# Chrome Web Store privacy policy URL. Enable it once in the repository settings:
+# Settings → Pages → Source: "GitHub Actions".
+name: Publish legal pages
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - public/privacy.html
+      - public/terms.html
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assemble site
+        run: |
+          mkdir site
+          cp public/privacy.html public/terms.html public/icon.svg site/
+          printf '<!doctype html><meta charset="utf-8"><link rel="icon" href="icon.svg"><meta http-equiv="refresh" content="0; url=privacy.html"><a href="privacy.html">Privacy Policy</a> · <a href="terms.html">Terms of Use</a>\n' > site/index.html
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

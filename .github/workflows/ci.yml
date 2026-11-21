@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  test-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build:prod
+
+      # Branded Chrome ignores --load-extension, so the e2e suite uses Chrome for Testing.
+      - name: Install Chrome for Testing
+        run: npx --yes @puppeteer/browsers install chrome@stable --path .cache
+
+      - name: End-to-end tests
+        run: npm run test:e2e
+
+      - name: Package extension
+        run: cd dist && zip -r ../api-mock-extension.zip .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: api-mock-extension
+          path: api-mock-extension.zip

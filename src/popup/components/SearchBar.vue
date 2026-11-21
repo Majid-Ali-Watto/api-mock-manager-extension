@@ -1,24 +1,24 @@
 <template>
   <div class="search-wrapper">
+    <Icon name="search" :size="14" class="search-icon" />
     <input
       :value="modelValue"
       @input="$emit('update:modelValue', $event.target.value)"
+      @keyup.esc="$emit('clear')"
       type="text"
-      placeholder="🔍 Search collections or APIs..."
-      class="search-input"
+      placeholder="Search collections and APIs"
+      class="ui-input search-input"
+      spellcheck="false"
     />
-    <button
-      v-if="modelValue"
-      @click="$emit('clear')"
-      class="clear-search-btn"
-      title="Clear search"
-    >
-      ✕
+    <button v-if="modelValue" @click="$emit('clear')" class="ui-icon-btn ui-icon-btn--sm clear-search-btn" title="Clear search">
+      <Icon name="x" :size="13" />
     </button>
   </div>
 </template>
 
 <script setup>
+import Icon from "./Icon.vue";
+
 defineProps({
   modelValue: {
     type: String,
@@ -33,48 +33,32 @@ defineEmits(["update:modelValue", "clear"]);
 .search-wrapper {
   position: relative;
   flex: 1;
+  min-width: 0;
+}
+
+.search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-3);
+  pointer-events: none;
 }
 
 .search-input {
-  width: 100%;
-  padding: 6px;
-  border: 1px solid var(--field-border);
-  border-radius: 6px;
-  font-size: 13px;
-  outline: none;
-  transition: all 0.2s ease;
-  box-sizing: border-box;
-  background: var(--button-bg);
-  color: var(--field-text);
+  padding-left: 30px;
+  padding-right: 30px;
+  background: var(--surface-2);
 }
 
 .search-input:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--focus-ring);
-  background: var(--field-bg);
+  background: var(--surface);
 }
 
 .clear-search-btn {
   position: absolute;
-  right: 8px;
+  right: 4px;
   top: 50%;
   transform: translateY(-50%);
-  background: var(--surface-soft);
-  border: none;
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  color: var(--text-muted);
-  transition: all 0.2s ease;
-}
-
-.clear-search-btn:hover {
-  background: var(--button-hover-bg);
-  color: var(--text-body);
 }
 </style>

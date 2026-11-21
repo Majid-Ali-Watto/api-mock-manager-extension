@@ -1,7 +1,9 @@
 <template>
   <div class="collections-container" :class="{ 'tab-mode': tabMode }">
     <div v-if="collections.length === 0" class="empty-state">
-      <p>No collections yet. Create one above!</p>
+      <span class="empty-icon"><Icon name="folder" :size="22" /></span>
+      <h3>No collections yet</h3>
+      <p>Create a collection with <strong>New</strong>, then add the API responses you want to mock — or import an export.</p>
     </div>
     <div v-if="collections.length > 0" class="collection-container-inner">
       <CollectionBulkActions
@@ -37,6 +39,9 @@
           :has-apis="apis[col.id]?.length > 0"
           :is-enabled="col.enabled !== false"
           :is-pinned="col.pinned"
+          :sites="col.sites || []"
+          :is-recording="recording?.collectionId === col.id"
+          @edit-sites="editCollectionSites(col)"
           @toggle-select="toggleCollectionSelection(col.id)"
           @toggle-collapse="toggleCollection(col.id)"
           @toggle-search="toggleCollectionSearch(col.id)"
@@ -51,18 +56,28 @@
               v-if="openMenuCollectionId === col.id"
               :style="getCollectionMenuStyle(col.id)"
             >
-              <MenuItem icon="📤" label="Import API" @click="triggerApiImport(col.id)" />
-              <MenuItem icon="📥" label="Export Collection" @click="exportCollection(col.id)" />
-              <MenuItem icon="▶️" label="Enable All APIs" @click="setAllApisEnabled(col.id, true)" />
-              <MenuItem icon="⏸️" label="Disable All APIs" @click="setAllApisEnabled(col.id, false)" />
-              <MenuItem 
-                :icon="(apiSortBy[col.id] || 'name') === 'name' ? '🔤' : '📅'" 
-                :label="`Sort APIs by ${(apiSortBy[col.id] || 'name') === 'name' ? 'Date' : 'Name'}`" 
-                @click="toggleApiSort(col.id)" 
+              <MenuItem icon="edit" label="Rename" @click="startRenameCollection(col)" />
+              <MenuItem icon="globe" label="Sites…" @click="editCollectionSites(col)" />
+              <MenuItem icon="layers" label="Scenario…" @click="switchCollectionScenario(col)" />
+              <MenuItem
+                :icon="recording?.collectionId === col.id ? 'stop' : 'record'"
+                :label="recording?.collectionId === col.id ? 'Stop recording' : 'Record from current tab'"
+                @click="toggleRecording(col)"
               />
-              <MenuItem :icon="col.pinned ? '★' : '☆'" :label="col.pinned ? 'Unpin' : 'Pin to top'" @click="toggleCollectionPinnedStatus(col.id, !col.pinned)" />
-              <MenuItem icon="✏️" label="Rename" @click="startRenameCollection(col)" />
-              <MenuItem icon="🗑️" label="Delete" :is-delete="true" @click="deleteCollection(col.id)" />
+              <div class="menu-separator" />
+              <MenuItem icon="play" label="Enable All APIs" @click="setAllApisEnabled(col.id, true)" />
+              <MenuItem icon="pause" label="Disable All APIs" @click="setAllApisEnabled(col.id, false)" />
+              <MenuItem
+                :icon="(apiSortBy[col.id] || 'name') === 'name' ? 'calendar' : 'type'"
+                :label="`Sort APIs by ${(apiSortBy[col.id] || 'name') === 'name' ? 'Date' : 'Name'}`"
+                @click="toggleApiSort(col.id)"
+              />
+              <MenuItem icon="star" :filled="col.pinned" :label="col.pinned ? 'Unpin' : 'Pin to top'" @click="toggleCollectionPinnedStatus(col.id, !col.pinned)" />
+              <div class="menu-separator" />
+              <MenuItem icon="download" label="Import API" @click="triggerApiImport(col.id)" />
+              <MenuItem icon="upload" label="Export Collection" @click="exportCollection(col.id)" />
+              <div class="menu-separator" />
+              <MenuItem icon="trash" label="Delete" :is-delete="true" @click="deleteCollection(col.id)" />
             </DropdownMenu>
           </template>
         </CollectionHeader>
@@ -76,29 +91,21 @@
         <div v-if="expandedCollections[col.id]" class="collection-content">
           <div v-if="apis[col.id]?.length > 0">
             <div class="api-bulk-actions" v-if="selectedApis[col.id]?.size > 0">
-              <label class="select-all-label small">
+              <label class="select-all-label">
                 <input
                   type="checkbox"
                   :checked="allApisSelected(col.id)"
                   @change="toggleAllApis(col.id)"
-                  class="checkbox small-checkbox"
+                  class="ui-checkbox"
                 />
-                Select All APIs
+                {{ selectedApis[col.id].size }} selected
               </label>
               <div class="api-actions-buttons">
-                <button
-                  v-if="selectedApis[col.id]?.size > 0"
-                  @click="exportSelectedApis(col.id)"
-                  class="bulk-action-btn small export-btn"
-                >
-                  📥 Export
+                <button @click="exportSelectedApis(col.id)" class="ui-btn ui-btn--sm">
+                  <Icon name="upload" :size="13" /> Export
                 </button>
-                <button
-                  v-if="selectedApis[col.id]?.size > 0"
-                  @click="deleteSelectedApis(col.id)"
-                  class="bulk-delete-btn small"
-                >
-                  🗑️ {{ selectedApis[col.id].size }} API(s)
+                <button @click="deleteSelectedApis(col.id)" class="ui-btn ui-btn--sm ui-btn--danger">
+                  <Icon name="trash" :size="13" /> Delete
                 </button>
               </div>
             </div>
@@ -128,20 +135,25 @@
                     v-if="openMenuApiId === api.id"
                     :style="getMenuStyle(api.id)"
                   >
-                    <MenuItem icon="👁️" label="View" @click="openApiInTab(api.id)" />
-                    <MenuItem icon="📋" label="Copy JSON" @click="copyApiAsJson(api)" />
-                    <MenuItem icon="📥" label="Download JSON" @click="downloadApiAsJson(api)" />
-                    <MenuItem icon="📋" label="Duplicate" @click="duplicateApiItem(col.id, api.id)" />
-                    <MenuItem :icon="api.pinned ? '★' : '☆'" :label="api.pinned ? 'Unpin' : 'Pin to top'" @click="toggleApiPinnedStatus(col.id, api.id, !api.pinned)" />
-                    <MenuItem icon="✏️" label="Edit" @click="openEditApiInTab(api)" />
-                    <MenuItem icon="🗑️" label="Delete" :is-delete="true" @click="deleteApi(col.id, api.id)" />
+                    <MenuItem icon="eye" label="View" @click="openApiInTab(api.id)" />
+                    <MenuItem icon="edit" label="Edit" @click="openEditApiInTab(api)" />
+                    <MenuItem icon="copy" label="Duplicate" @click="duplicateApiItem(col.id, api.id)" />
+                    <MenuItem icon="star" :filled="api.pinned" :label="api.pinned ? 'Unpin' : 'Pin to top'" @click="toggleApiPinnedStatus(col.id, api.id, !api.pinned)" />
+                    <div class="menu-separator" />
+                    <MenuItem icon="code" label="Copy JSON" @click="copyApiAsJson(api)" />
+                    <MenuItem icon="download" label="Download JSON" @click="downloadApiAsJson(api)" />
+                    <div class="menu-separator" />
+                    <MenuItem icon="trash" label="Delete" :is-delete="true" @click="deleteApi(col.id, api.id)" />
                   </DropdownMenu>
                 </template>
               </ApiItem>
             </div>
           </div>
           <div v-else class="no-apis">
-            <p>No APIs yet. Click "Add API" above!</p>
+            <span>No APIs in this collection yet.</span>
+            <button class="ui-btn ui-btn--sm" @click="openAddApiInTab(col.id, col.name)">
+              <Icon name="plus" :size="13" /> Add API
+            </button>
           </div>
         </div>
       </div>
@@ -165,6 +177,7 @@ import CollectionSearch from "./CollectionSearch.vue";
 import ApiItem from "./ApiItem.vue";
 import DropdownMenu from "./DropdownMenu.vue";
 import MenuItem from "./MenuItem.vue";
+import Icon from "./Icon.vue";
 import { useCollectionList } from "../scripts/useCollectionList";
 
 const props = defineProps({
@@ -215,6 +228,10 @@ const {
   getCollectionMenuStyle,
   loadCollections,
   startRenameCollection,
+  editCollectionSites,
+  recording,
+  toggleRecording,
+  switchCollectionScenario,
   deleteCollection,
   toggleCollectionEnabledStatus,
   toggleAllCollectionsEnabled,
@@ -283,172 +300,120 @@ defineExpose({
 
 <style scoped>
 .collections-container {
-  padding: 10px 5px;
-  background: var(--panel-bg);
-  height: 500px;
-  min-height: 500px;
+  padding: 10px 14px 14px;
+  background: var(--bg);
+  height: 520px;
   overflow-y: auto;
 }
 
 .collections-container.tab-mode {
   height: auto;
-  min-height: 0;
   overflow-y: visible;
-  display: flex;
-  flex-direction: column;
+  max-width: 960px;
+  width: 100%;
+  margin: 0 auto;
+  padding-top: 16px;
 }
 
 .collection-container-inner {
-  border: 2px solid var(--border-soft);
-  border-radius: 12px 12px 0 0;
-  flex: 1;
   display: flex;
   flex-direction: column;
+  gap: 10px;
 }
 
 .empty-state {
-  text-align: center;
-  color: var(--text-faint);
-  font-style: italic;
-  flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 20px;
+  gap: 6px;
+  height: 100%;
+  min-height: 300px;
+  padding: 32px;
+  text-align: center;
+  color: var(--text-2);
+}
+
+.empty-state h3 {
+  margin: 6px 0 0;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.empty-state p {
+  max-width: 340px;
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.empty-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .collection-card {
-  background: var(--surface-bg);
-  border-radius: 12px 12px 0 0;
-  margin-bottom: 16px;
-  box-shadow: var(--card-shadow);
- border: 1px solid var(--border-soft);
-  overflow: visible;
-  transition: all 0.3s ease;
   position: relative;
-  margin-inline: 5px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.collection-card.collection-disabled .collection-title {
-  text-decoration: line-through;
+.collection-card:hover {
+  border-color: var(--border-strong);
+}
+
+.collection-card.collection-disabled {
+  background: var(--surface-2);
 }
 
 .collection-content {
-  padding: 6px 10px;
-  animation: slideDown 0.3s ease;
-  border-radius: 0 0 12px 12px;
   position: relative;
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    max-height: 0;
-  }
-  to {
-    opacity: 1;
-    max-height: 2000px;
-  }
+  padding: 2px 0 4px;
 }
 
 .api-bulk-actions {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px;
-  background: var(--surface-soft);
-  border-radius: 6px;
-  margin-bottom: 12px;
+  gap: 8px;
+  padding: 6px 10px 6px 30px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--border);
 }
 
 .select-all-label {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-body);
-  cursor: pointer;
-}
-
-.select-all-label.small {
+  gap: 9px;
   font-size: 12px;
-}
-
-.checkbox {
-  width: 18px;
-  height: 18px;
+  font-weight: 600;
+  color: var(--accent-text);
   cursor: pointer;
-  accent-color: var(--primary);
-}
-
-.small-checkbox {
-  width: 16px !important;
-  height: 16px !important;
 }
 
 .api-actions-buttons {
   display: flex;
-  flex-direction: row;
-  gap: 5px;
-}
-
-.bulk-action-btn {
-  padding: 5px 10px;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  background: #6c757d;
-}
-
-.bulk-action-btn.small {
-  padding: 6px 12px;
-  font-size: 12px;
-}
-
-.bulk-action-btn.export-btn {
-  background: #6c757d;
-}
-
-.bulk-action-btn.export-btn:hover {
-  background: #5a6268;
-}
-
-.bulk-delete-btn {
-  padding: 5px 10px;
-  background: #dc3545;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.bulk-delete-btn:hover {
-  background: #c82333;
-  box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
-}
-
-.bulk-delete-btn.small {
-  padding: 6px 12px;
-  font-size: 12px;
+  gap: 6px;
 }
 
 .api-list {
-  overflow: visible;
   position: relative;
 }
 
 .no-apis {
-  text-align: center;
-  padding: 20px;
-  color: var(--text-faint);
-  font-size: 13px;
-  font-style: italic;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 18px;
+  color: var(--text-3);
+  font-size: 12.5px;
 }
 </style>

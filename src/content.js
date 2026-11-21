@@ -1,102 +1,112 @@
-// Content Script for Intercepting Fetch/XHR
+// Content Script: bridges the background service worker and injected.js (page world).
+// Mock data is exchanged with injected.js over a private MessagePort, never via DOM
+// events, so page scripts can't read mocks or forge hit reports.
 (function() {
   'use strict';
 
-  // Load mocks from background and send to injected script
-  let contextInvalidated = false;
+  // Must match BRIDGE in injected.js.
+  const BRIDGE = { PORT: '__api_mock_port__', CONTENT_READY: '__api_mock_content_ready__' };
 
-  function loadAndSendMocks() {
-    // Check if extension context is valid
-    if (!chrome.runtime?.id) {
-      if (!contextInvalidated) {
-        contextInvalidated = true;
-        console.log('🔄 Extension reloaded - content script will be reinjected');
-        // Clear the interval to stop trying
-        if (window.mockSyncInterval) {
-          clearInterval(window.mockSyncInterval);
-        }
-      }
-      return false; // Context invalid
-    }
-    
-    try {
-      chrome.runtime.sendMessage({ type: 'GET_ENABLED_APIS' }, (response) => {
-        // Check for runtime errors (extension reloaded)
-        if (chrome.runtime.lastError) {
-          if (!contextInvalidated) {
-            contextInvalidated = true;
-            console.log('🔄 Extension context changed - stopping updates');
-            if (window.mockSyncInterval) {
-              clearInterval(window.mockSyncInterval);
-            }
-          }
-          return;
-        }
-        
-        if (response && response.apis) {
-          document.dispatchEvent(new CustomEvent('API_MOCK_UPDATE', {
-            detail: JSON.stringify(response.apis)
-          }));
-        }
-      });
-    } catch (err) {
-      if (!contextInvalidated) {
-        contextInvalidated = true;
-        console.log('🔄 Extension communication lost');
-        if (window.mockSyncInterval) {
-          clearInterval(window.mockSyncInterval);
-        }
-      }
-    }
-    return true; // Context valid
+  let port = null;
+  let contextInvalidated = false;
+  let syncInterval = null;
+  // Last payload sent to the page; only re-sent when it changes.
+  let lastSentDetail = null;
+
+  function stopSync(reason) {
+    if (contextInvalidated) return;
+    contextInvalidated = true;
+    console.log(`🔄 API Mock: ${reason} - stopping updates`);
+    if (syncInterval) clearInterval(syncInterval);
   }
 
-  document.addEventListener('API_MOCK_READY', loadAndSendMocks);
-  document.addEventListener('API_MOCK_HIT', (event) => {
-    if (!chrome.runtime?.id || !event.detail) return;
+  function loadAndSendMocks(force = false) {
+    if (!chrome.runtime?.id) {
+      stopSync('extension reloaded');
+      return;
+    }
+    if (!port) return;
 
     try {
-      chrome.runtime.sendMessage({
-        type: 'RECORD_API_HIT',
-        hit: event.detail
+      chrome.runtime.sendMessage({ type: 'GET_ENABLED_APIS' }, (response) => {
+        if (chrome.runtime.lastError) {
+          stopSync('extension context changed');
+          return;
+        }
+        if (!response || !Array.isArray(response.apis)) return;
+
+        const record = response.record === true;
+        const detail = JSON.stringify([record, response.apis]);
+        if (!force && detail === lastSentDetail) return;
+        lastSentDetail = detail;
+        port.postMessage({ type: 'mocks', mocks: response.apis, record });
       });
+    } catch {
+      stopSync('extension communication lost');
+    }
+  }
+
+  function toBackground(message) {
+    if (!chrome.runtime?.id) return;
+    try {
+      chrome.runtime.sendMessage(message).catch?.(() => {});
     } catch {
       // The extension context can disappear during reloads.
     }
-  });
+  }
 
-  // Sync once immediately and once after the current turn. The ready event handles
-  // normal loads; the timeout covers cases where injected.js ran first.
-  loadAndSendMocks();
-  setTimeout(loadAndSendMocks, 0);
-
-  // Reload mocks every 2 seconds (faster sync)
-  window.mockSyncInterval = setInterval(() => {
-    const stillValid = loadAndSendMocks();
-    if (!stillValid && window.mockSyncInterval) {
-      clearInterval(window.mockSyncInterval);
+  // Messages from injected.js. Fields are copied explicitly; nothing else is forwarded.
+  function onPortMessage(event) {
+    const msg = event.data;
+    if (msg?.type === 'hit') {
+      toBackground({
+        type: 'RECORD_API_HIT',
+        hit: {
+          apiId: msg.apiId,
+          collectionId: msg.collectionId,
+          method: String(msg.method || ''),
+          url: String(msg.url || '').slice(0, 2048),
+          status: Number(msg.status) || 0,
+          mode: String(msg.mode || 'mock'),
+        },
+      });
+    } else if (msg?.type === 'record') {
+      toBackground({
+        type: 'RECORD_RESPONSE',
+        response: {
+          method: String(msg.method || 'GET'),
+          url: String(msg.url || ''),
+          status: Number(msg.status) || 200,
+          contentType: String(msg.contentType || ''),
+          body: typeof msg.body === 'string' ? msg.body : '',
+          requestBody: typeof msg.requestBody === 'string' ? msg.requestBody : '',
+        },
+      });
     }
-  }, 2000);
-  
-  // Listen for reload requests
+  }
+
+  // Accept exactly one port: the one injected.js offers at document_start.
+  function onPortOffered(event) {
+    if (port || !event.ports?.[0]) return;
+    event.preventDefault(); // tells injected.js the port was accepted
+    port = event.ports[0];
+    port.onmessage = onPortMessage;
+    document.removeEventListener(BRIDGE.PORT, onPortOffered);
+    loadAndSendMocks(true);
+  }
+
+  document.addEventListener(BRIDGE.PORT, onPortOffered);
+  // If injected.js ran first, ask it to offer the port now.
+  document.dispatchEvent(new Event(BRIDGE.CONTENT_READY));
+
+  // Fallback sync; changes are normally pushed via RELOAD_MOCKS.
+  syncInterval = setInterval(() => loadAndSendMocks(), 2000);
+
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'RELOAD_MOCKS') {
       loadAndSendMocks();
       sendResponse({ success: true });
       return true;
     }
-    
-    if (message.type === 'MOCK_API') {
-      // Forward mock to injected script
-      document.dispatchEvent(new CustomEvent('API_MOCK_INTERCEPT', {
-        detail: JSON.stringify({ 
-          api: message.api,
-          requestUrl: message.requestUrl
-        })
-      }));
-      sendResponse({ success: true });
-      return true;
-    }
   });
-
 })();

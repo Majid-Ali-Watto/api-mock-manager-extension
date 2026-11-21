@@ -19,14 +19,25 @@ export function formatDate(timestamp) {
   return new Date(timestamp).toLocaleString();
 }
 
+export function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// Output is rendered with v-html, so stored/imported text must always be escaped.
 export function highlightSearchTerm(text, searchQuery) {
-  if (!searchQuery || !text) return text;
+  if (!text) return text;
+  const safeText = escapeHtml(text);
 
-  const query = searchQuery.trim();
-  if (!query) return text;
+  const query = (searchQuery || "").trim();
+  if (!query) return safeText;
 
-  const regex = new RegExp(`(${query})`, "gi");
-  return text.replace(regex, "<mark>$1</mark>");
+  const pattern = escapeHtml(query).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return safeText.replace(new RegExp(`(${pattern})`, "gi"), "<mark>$1</mark>");
 }
 
 export function isMatchingSearch(text, searchQuery) {

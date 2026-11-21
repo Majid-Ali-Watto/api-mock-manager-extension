@@ -1,92 +1,127 @@
 <template>
   <div class="api-detail-page">
     <div v-if="loading" class="state-msg">Loading…</div>
-    <div v-else-if="!api" class="state-msg">API not found.</div>
+    <div v-else-if="!api" class="state-msg">
+      <Icon name="alert" :size="18" /> API not found.
+    </div>
 
-    <div v-else class="api-detail-card">
-      <!-- header -->
-      <div class="page-header">
-        <div class="header-info">
-          <span class="collection-tag">{{ collectionName }}</span>
-          <h2 class="api-label">{{ api.label }}</h2>
-          <div class="header-actions">
-            <div class="badges">
-              <span :class="['method-badge', api.method?.toLowerCase()]">{{ api.method }}</span>
-              <span class="status-code">{{ api.status }}</span>
-              <span v-if="api.delay" class="delay-badge" title="Response delay">⏱ {{ api.delay }}ms</span>
-              <span :class="['enabled-badge', api.enabled !== false ? 'enabled' : 'disabled']">
-                {{ api.enabled !== false ? '✓ Enabled' : '⏸ Disabled' }}
-              </span>
-            </div>
-            <div class="badges">
-              <button @click="editApi" class="action-btn edit-btn">✏️ Edit</button>
-              <button @click="deleteApi" class="action-btn delete-btn">🗑️ Delete</button>
-              <button @click="copyApi" class="action-btn">📋 Copy JSON</button>
-              <button @click="downloadApi" class="action-btn">💾 Download</button>
-              <input v-model="searchQuery" placeholder="Search in details…" class="search-input" />
+    <template v-else>
+      <header class="page-header">
+        <div class="page-header-inner">
+          <div class="header-info">
+            <button @click="closeTab" class="ui-icon-btn" title="Close"><Icon name="arrow-left" /></button>
+            <div class="title-block">
+              <div class="breadcrumb"><Icon name="folder" :size="12" /> {{ collectionName || "Collection" }}</div>
+              <h2 class="api-label">{{ api.label || api.url }}</h2>
             </div>
           </div>
-
+          <div class="header-actions">
+            <div class="search-wrap">
+              <Icon name="search" :size="13" class="search-icon" />
+              <input v-model="searchQuery" placeholder="Search in details" class="ui-input search-input" spellcheck="false" />
+            </div>
+            <button @click="copyApi" class="ui-icon-btn ui-icon-btn--bordered" title="Copy as JSON"><Icon name="copy" :size="15" /></button>
+            <button @click="downloadApi" class="ui-icon-btn ui-icon-btn--bordered" title="Download JSON"><Icon name="download" :size="15" /></button>
+            <button @click="deleteApi" class="ui-icon-btn ui-icon-btn--bordered delete-btn" title="Delete"><Icon name="trash" :size="15" /></button>
+            <button @click="editApi" class="ui-btn ui-btn--primary"><Icon name="edit" :size="14" /> Edit</button>
+          </div>
         </div>
-
-
-
-      </div>
+      </header>
 
       <div class="detail-body">
-        <!-- basic info -->
-        <section class="detail-section">
-          <h4>Basic Information</h4>
-          <div class="detail-row">
-            <span class="detail-label">URL</span>
-            <span class="detail-value code" v-html="highlight(api.url)"></span>
+        <!-- summary -->
+        <section class="detail-card summary">
+          <div class="summary-line">
+            <MethodBadge :method="api.method || 'GET'" />
+            <code class="summary-url" v-html="highlight(api.url)"></code>
           </div>
-          <div class="detail-row">
-            <span class="detail-label">URL Match</span>
-            <span class="detail-value">{{ api.urlMatchType || 'auto' }}</span>
+          <div class="chip-row">
+            <span :class="['ui-chip', 'ui-chip--mono', statusTone]">{{ effectiveStatus }} {{ statusLabel }}</span>
+            <span :class="['ui-chip', api.enabled !== false ? 'ui-chip--success' : '']">
+              <Icon :name="api.enabled !== false ? 'check' : 'pause'" :size="11" stroke-width="2.6" />
+              {{ api.enabled !== false ? "Enabled" : "Paused" }}
+            </span>
+            <span v-if="api.delay" class="ui-chip"><Icon name="clock" :size="11" stroke-width="2.4" /> {{ api.delay }} ms</span>
+            <span v-if="effectiveMode !== 'mock'" class="ui-chip ui-chip--danger"><Icon name="alert" :size="11" stroke-width="2.4" /> {{ effectiveMode }}</span>
+            <span v-if="api.activeVariant" class="ui-chip ui-chip--accent"><Icon name="layers" :size="11" stroke-width="2.4" /> {{ api.activeVariant }}</span>
+            <span v-if="api.templated" class="ui-chip ui-chip--accent"><Icon name="zap" :size="11" stroke-width="2.4" /> dynamic</span>
+            <span v-if="api.recorded" class="ui-chip"><Icon name="record" :size="9" /> recorded</span>
           </div>
-          <div class="detail-row">
-            <span class="detail-label">Created</span>
-            <span class="detail-value">{{ formatDate(api.createdAt) }}</span>
-          </div>
+        </section>
+
+        <!-- settings -->
+        <section class="detail-card">
+          <h4>Settings</h4>
+          <dl class="settings-grid">
+            <dt>URL match</dt>
+            <dd>{{ api.urlMatchType === "regex" ? "Regular expression" : "Auto (exact, contains, wildcard, :params)" }}</dd>
+            <dt>Content type</dt>
+            <dd><code>{{ typeof api.contentType === "string" ? (api.contentType || "none") : "application/json" }}</code></dd>
+            <template v-if="api.matchQuery">
+              <dt>Query must have</dt>
+              <dd><code>{{ api.matchQuery }}</code></dd>
+            </template>
+            <template v-if="api.matchBody">
+              <dt>Body match</dt>
+              <dd>Request body must contain the request payload</dd>
+            </template>
+            <template v-if="api.templated">
+              <dt>Dynamic</dt>
+              <dd>Template placeholders are rendered on each request</dd>
+            </template>
+            <dt>Created</dt>
+            <dd>{{ formatDate(api.createdAt) }}</dd>
+          </dl>
+        </section>
+
+        <!-- variants -->
+        <section v-if="api.variants?.length" class="detail-card">
+          <h4>Variants</h4>
+          <ul class="variant-list">
+            <li :class="{ active: !api.activeVariant }">
+              <span class="variant-name">Main response</span>
+              <span class="ui-chip ui-chip--mono">{{ api.status || 200 }}</span>
+              <span v-if="!api.activeVariant" class="active-tag">active</span>
+            </li>
+            <li v-for="v in api.variants" :key="v.name" :class="{ active: v.name === api.activeVariant }">
+              <span class="variant-name">{{ v.name }}</span>
+              <span class="ui-chip ui-chip--mono">{{ v.status }}</span>
+              <span v-if="v.responseMode && v.responseMode !== 'mock'" class="ui-chip ui-chip--danger">{{ v.responseMode }}</span>
+              <span v-if="v.name === api.activeVariant" class="active-tag">active</span>
+            </li>
+          </ul>
         </section>
 
         <!-- response headers -->
-        <section v-if="api.responseHeaders" class="detail-section">
-          <h4>Response Headers</h4>
-          <div class="json-container">
-            <pre>{{ prettyJson(api.responseHeaders) }}</pre>
-          </div>
+        <section v-if="api.responseHeaders" class="detail-card">
+          <h4>Response headers</h4>
+          <pre class="code-block">{{ prettyJson(api.responseHeaders) }}</pre>
         </section>
 
         <!-- request payload -->
-        <section v-if="api.requestPayload && api.method !== 'GET'" class="detail-section"
-          :class="{ 'search-match': matchesRequest }">
+        <section v-if="api.requestPayload && api.method !== 'GET'" class="detail-card"
+          :class="{ 'search-match': searchQuery && matchesRequest }">
           <div class="detail-header">
-            <h4>Request Payload</h4>
-            <button @click="downloadPayload('request')" class="action-btn">💾 Download</button>
+            <h4>Request payload</h4>
+            <button @click="downloadPayload('request')" class="ui-btn ui-btn--ghost ui-btn--sm"><Icon name="download" :size="13" /> Download</button>
           </div>
-          <div class="json-container">
-            <pre v-html="highlight(prettyJson(api.requestPayload))"></pre>
-          </div>
+          <pre class="code-block" v-html="highlight(prettyJson(api.requestPayload))"></pre>
         </section>
 
         <!-- response payload -->
-        <section class="detail-section" :class="{ 'search-match': matchesResponse }">
+        <section class="detail-card" :class="{ 'search-match': searchQuery && matchesResponse }">
           <div class="detail-header">
-            <h4>Response Payload</h4>
-            <button @click="downloadPayload('response')" class="action-btn">💾 Download</button>
+            <h4>Response payload</h4>
+            <button @click="downloadPayload('response')" class="ui-btn ui-btn--ghost ui-btn--sm"><Icon name="download" :size="13" /> Download</button>
           </div>
-          <div class="json-container">
-            <pre v-html="highlight(prettyJson(api.responsePayload))"></pre>
-          </div>
+          <pre class="code-block" v-html="highlight(prettyJson(api.responsePayload))"></pre>
         </section>
 
         <div v-if="searchQuery && !hasAnyMatch" class="no-results">
           No results for "{{ searchQuery }}"
         </div>
       </div>
-    </div>
+    </template>
   </div>
 </template>
 
@@ -95,8 +130,11 @@ import { ref, computed, onMounted } from "vue";
 import { getApiById, deleteApi as deleteApiFromDB } from "../../db/apis.repo";
 import { getCollectionById } from "../../db/collections.repo";
 import { formatDate, highlightSearchTerm, downloadJson, notifyContentScripts } from "../utils/helpers";
+import { toExportApi } from "../utils/apiSchema";
 import { useToast } from "../composables/useToast";
 import { useConfirm } from "../composables/useConfirm";
+import Icon from "./Icon.vue";
+import MethodBadge from "./MethodBadge.vue";
 
 const props = defineProps({
   apiId: { type: Number, required: true },
@@ -133,7 +171,7 @@ function prettyJson(raw) {
 }
 
 function highlight(text) {
-  if (!searchQuery.value || !text) return text;
+  // Always go through highlightSearchTerm: it escapes HTML for v-html.
   return highlightSearchTerm(text, searchQuery.value);
 }
 
@@ -155,6 +193,28 @@ const hasAnyMatch = computed(() => {
   );
 });
 
+const STATUS_TEXT = { 200: "OK", 201: "Created", 204: "No Content", 301: "Moved", 302: "Found", 304: "Not Modified",
+  400: "Bad Request", 401: "Unauthorized", 403: "Forbidden", 404: "Not Found", 409: "Conflict", 422: "Unprocessable",
+  429: "Too Many Requests", 500: "Server Error", 502: "Bad Gateway", 503: "Unavailable", 504: "Timeout" };
+
+const activeVariantObj = computed(() =>
+  api.value?.activeVariant ? (api.value.variants || []).find((v) => v.name === api.value.activeVariant) : null
+);
+const effectiveStatus = computed(() => activeVariantObj.value?.status || api.value?.status || 200);
+const effectiveMode = computed(() => activeVariantObj.value?.responseMode || api.value?.responseMode || "mock");
+const statusLabel = computed(() => STATUS_TEXT[effectiveStatus.value] || "");
+const statusTone = computed(() => {
+  const code = Number(effectiveStatus.value);
+  if (code >= 500) return "ui-chip--danger";
+  if (code >= 400) return "ui-chip--warning";
+  if (code >= 300) return "ui-chip--info";
+  return "ui-chip--success";
+});
+
+function closeTab() {
+  window.close();
+}
+
 function editApi() {
   window.location.href =
     chrome.runtime.getURL("index.html") +
@@ -173,13 +233,7 @@ async function deleteApi() {
 }
 
 function buildExportJson() {
-  const a = api.value;
-  return {
-    label: a.label, method: a.method, url: a.url, status: a.status,
-    delay: a.delay || 0, urlMatchType: a.urlMatchType || "auto",
-    requestPayload: a.requestPayload, responsePayload: a.responsePayload,
-    responseHeaders: a.responseHeaders || "", enabled: a.enabled, createdAt: a.createdAt,
-  };
+  return toExportApi(api.value);
 }
 
 async function copyApi() {
@@ -224,309 +278,253 @@ function downloadPayload(type) {
 
 <style scoped>
 .api-detail-page {
-  min-height: 80dvh;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 32px 24px;
-  box-sizing: border-box;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--text);
 }
 
 .state-msg {
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 16px;
-  margin-top: 80px;
-}
-
-.api-detail-card {
-  background: var(--surface-bg);
-  border-radius: 14px;
-  width: 100%;
-  max-width: 900px;
-  min-height: 80dvh;
   display: flex;
-  flex-direction: column;
-  box-shadow: var(--card-shadow);
-  overflow: hidden;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 60dvh;
+  color: var(--text-2);
 }
 
 .page-header {
-  padding: 20px 24px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--surface-muted);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+
+.page-header-inner,
+.detail-body {
+  max-width: 920px;
+  margin: 0 auto;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+.page-header-inner {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 16px;
-  align-items: flex-start;
-  flex-direction: column;
-  flex-wrap: wrap;
+  padding-top: 12px;
+  padding-bottom: 12px;
 }
 
 .header-info {
-  width: 100%;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
-.collection-tag {
-  display: inline-block;
-  background: var(--header-bg);
-  color: white;
-  padding: 3px 10px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  align-self: flex-start;
+.title-block {
+  min-width: 0;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-3);
+  font-size: 11.5px;
+  font-weight: 600;
 }
 
 .api-label {
-  margin-block: 5px;
-  font-size: 20px;
+  margin: 1px 0 0;
+  overflow: hidden;
+  font-size: 17px;
   font-weight: 700;
-  color: var(--text-main);
-  word-break: break-word;
-}
-
-.badges {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.method-badge,
-.status-code,
-.delay-badge,
-.enabled-badge {
-  display: inline-flex;
-  align-items: center;
-  height: 28px;
-  box-sizing: border-box;
-}
-
-.method-badge {
-  padding: 0 10px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.method-badge.get {
-  background: #d4edda;
-  color: #155724;
-}
-
-.method-badge.post {
-  background: #d1ecf1;
-  color: #0c5460;
-}
-
-.method-badge.put {
-  background: #fff3cd;
-  color: #856404;
-}
-
-.method-badge.patch {
-  background: #e7d5f8;
-  color: #6f42c1;
-}
-
-.method-badge.delete {
-  background: #f8d7da;
-  color: #721c24;
-}
-
-.status-code {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-muted);
-  background: var(--surface-soft);
-  padding: 0 10px;
-  border-radius: 6px;
-}
-
-.delay-badge {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-muted);
-  background: var(--surface-soft);
-  padding: 0 10px;
-  border-radius: 6px;
-}
-
-.enabled-badge {
-  font-size: 12px;
-  font-weight: 600;
-  padding: 0 10px;
-  border-radius: 6px;
-}
-
-.enabled-badge.enabled {
-  background: #d4edda;
-  color: #155724;
-}
-
-.enabled-badge.disabled {
-  background: #f8d7da;
-  color: #721c24;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .header-actions {
   display: flex;
-  gap: 8px;
   align-items: center;
-  flex-direction: row;
-  flex-wrap: wrap;
-  justify-content: space-between;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.search-wrap {
+  position: relative;
+  width: 200px;
+  margin-right: 4px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-3);
+  pointer-events: none;
 }
 
 .search-input {
-  height: 28px;
-  box-sizing: border-box;
-  padding: 0 12px;
-  border: 1px solid var(--field-border);
-  border-radius: 6px;
-  font-size: 13px;
-  background: var(--field-bg);
-  color: var(--field-text);
-  min-width: 180px;
-  transition: border-color 0.2s;
+  height: 30px;
+  padding-left: 29px;
+  font-size: 12.5px;
 }
 
-.search-input:focus {
-  outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--focus-ring);
-}
-
-.action-btn {
-  height: 28px;
-  box-sizing: border-box;
-  padding: 0 14px;
-  background: var(--surface-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  color: var(--text-body);
-  transition: all 0.2s;
-  white-space: nowrap;
-}
-
-.action-btn:hover {
-  background: var(--surface-soft);
-}
-
-.action-btn.edit-btn {
-  border-color: var(--primary);
-  color: var(--primary);
-}
-
-.action-btn.edit-btn:hover {
-  background: var(--focus-ring);
-}
-
-.action-btn.delete-btn {
-  border-color: #dc3545;
-  color: #dc3545;
-}
-
-.action-btn.delete-btn:hover {
-  background: #f8d7da;
+.delete-btn:hover {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: var(--danger);
 }
 
 .detail-body {
-  padding: 20px 24px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  flex: 1;
+  gap: 14px;
+  padding-top: 20px;
+  padding-bottom: 48px;
 }
 
-.detail-section {
-  background: var(--surface-muted);
-  border-radius: 10px;
-  padding: 16px;
-  transition: all 0.2s;
+.detail-card {
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.detail-section.search-match {
-  background: var(--search-match-bg);
-  border: 2px solid var(--search-match-border);
+.detail-card.search-match {
+  border-color: var(--warning);
+  box-shadow: 0 0 0 3px var(--warning-soft);
 }
 
-.detail-section h4 {
-  margin: 0 0 14px;
-  font-size: 15px;
+.detail-card h4 {
+  margin: 0 0 12px;
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.summary-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.summary-url {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 13.5px;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 10px 16px;
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.settings-grid dt {
+  color: var(--text-3);
   font-weight: 600;
-  color: var(--text-body);
+}
+
+.settings-grid dd {
+  margin: 0;
+  color: var(--text);
+}
+
+.settings-grid code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  font-size: 12px;
+}
+
+.variant-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.variant-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 12.5px;
+}
+
+.variant-list li + li {
+  border-top: 1px solid var(--border);
+}
+
+.variant-list li.active {
+  background: var(--accent-soft);
+}
+
+.variant-name {
+  flex: 1;
+  font-weight: 600;
+}
+
+.active-tag {
+  color: var(--accent-text);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .detail-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 14px;
+  justify-content: space-between;
+  margin-bottom: 10px;
 }
 
 .detail-header h4 {
   margin: 0;
 }
 
-.detail-row {
-  display: grid;
-  grid-template-columns: 130px 1fr;
-  gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.detail-row:last-child {
-  border-bottom: none;
-}
-
-.detail-label {
-  font-weight: 600;
-  font-size: 13px;
-  color: var(--text-body);
-}
-
-.detail-value {
-  font-size: 13px;
-  color: var(--text-main);
-  word-break: break-word;
-}
-
-.detail-value.code {
-  font-family: "Courier New", monospace;
-  font-size: 12px;
-  background: var(--field-bg);
-  padding: 3px 8px;
-  border-radius: 4px;
-}
-
-.json-container {
-  background: var(--code-bg);
-  border-radius: 8px;
-  padding: 16px;
-  overflow-x: auto;
-}
-
-.json-container pre {
+.code-block {
   margin: 0;
+  padding: 14px 16px;
+  max-height: 480px;
+  overflow: auto;
+  border-radius: var(--radius);
+  background: var(--code-bg);
   color: var(--code-text);
-  font-family: "Courier New", monospace;
-  font-size: 12px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .no-results {
+  padding: 24px;
+  color: var(--text-3);
   text-align: center;
-  padding: 32px;
-  color: var(--text-faint);
-  font-style: italic;
 }
 </style>

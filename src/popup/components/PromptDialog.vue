@@ -1,23 +1,24 @@
 <template>
   <Teleport to="body">
-    <div v-if="state.visible" class="prompt-overlay" @click.self="onCancel">
-      <div class="prompt-dialog">
+    <div v-if="state.visible" class="dialog-overlay" @click.self="onCancel">
+      <div class="dialog" role="dialog" aria-modal="true">
         <p class="prompt-title">{{ state.title }}</p>
         <input
           ref="inputRef"
           v-model="state.inputValue"
-          class="prompt-input"
+          class="ui-input prompt-input"
+          spellcheck="false"
           @keyup.enter="onConfirm"
           @keyup.esc="onCancel"
         />
-        <div class="prompt-actions">
-          <button class="prompt-cancel-btn" @click="onCancel">Cancel</button>
+        <div class="dialog-actions">
+          <button class="ui-btn" @click="onCancel">Cancel</button>
           <button
-            class="prompt-ok-btn"
+            class="ui-btn ui-btn--primary"
             @click="onConfirm"
             :disabled="!state.inputValue.trim()"
           >
-            OK
+            Save
           </button>
         </div>
       </div>
@@ -40,92 +41,48 @@ watch(
 );
 </script>
 
-<style>
-.prompt-overlay {
+<style scoped>
+.dialog-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  z-index: 3000;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9998;
+  padding: 16px;
+  background: var(--overlay);
+  animation: ui-fade 0.12s ease;
 }
 
-.prompt-dialog {
-  background: var(--surface-bg, #fff);
-  border-radius: 12px;
-  padding: 24px;
-  max-width: 400px;
-  width: 90%;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+.dialog {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  width: min(420px, 100%);
+  padding: 20px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  animation: ui-pop 0.15s ease;
 }
 
 .prompt-title {
   margin: 0;
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 600;
-  color: var(--text-body, #333);
+  line-height: 1.55;
+  white-space: pre-line;
 }
 
 .prompt-input {
-  padding: 8px 12px;
-  border: 1.5px solid var(--field-border, #ced4da);
-  border-radius: 6px;
-  font-size: 13px;
-  background: var(--field-bg, #fff);
-  color: var(--field-text, #333);
-  transition: border-color 0.2s;
+  height: 34px;
 }
 
-.prompt-input:focus {
-  outline: none;
-  border-color: var(--primary, #667eea);
-  box-shadow: 0 0 0 3px var(--focus-ring, rgba(102, 126, 234, 0.1));
-}
-
-.prompt-actions {
+.dialog-actions {
   display: flex;
-  gap: 10px;
   justify-content: flex-end;
-}
-
-.prompt-cancel-btn {
-  padding: 8px 18px;
-  background: var(--surface-soft, #e9ecef);
-  color: var(--text-body, #333);
-  border: none;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.prompt-cancel-btn:hover {
-  background: var(--border-color, #dee2e6);
-}
-
-.prompt-ok-btn {
-  padding: 8px 18px;
-  background: var(--primary, #667eea);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-.prompt-ok-btn:hover:not(:disabled) {
-  opacity: 0.85;
-}
-
-.prompt-ok-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  gap: 8px;
 }
 </style>

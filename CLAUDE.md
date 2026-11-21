@@ -20,6 +20,9 @@ Stack: Vue 3 popup UI, Vite build, IndexedDB storage, Manifest V3 background/con
 - Keep payload handling compatible with stored JSON strings.
 - Avoid large rewrites; prefer minimal diffs and reuse existing helpers.
 - Do not introduce new packages unless necessary.
+- `content.js` / `injected.js` are classic content scripts: never import a module from them that another entry (background/popup) also imports, or Rollup splits it into a chunk they can't load (the build fails via the `classic-content-scripts` check in `vite.config.js`).
+- Page ↔ extension traffic goes over the private MessagePort set up at `document_start`; never send mock data via DOM events.
+- Run `npm test` and `npm run build && npm run test:e2e` after touching interception.
 
 ## Efficient Workflow
 

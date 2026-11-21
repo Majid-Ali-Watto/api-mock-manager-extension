@@ -1,6 +1,5 @@
 # Dependencies
 node_modules/
-package-lock.json
 
 # Build output
 dist/
@@ -31,3 +30,6 @@ test.html
 # Temporary files
 *.tmp
 *.temp
+
+# Chrome for Testing downloaded for e2e tests
+.cache/

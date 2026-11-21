@@ -1,30 +1,32 @@
 <template>
   <div class="add-collection" :class="{ 'form-open': showForm }">
-    <button v-if="!showForm" @click="toggleForm" title="Add New Collection" class="toggle-btn">
-       ➕ 
+    <button v-if="!showForm" @click="toggleForm" title="Add New Collection" class="ui-btn ui-btn--primary new-btn">
+      <Icon name="plus" :size="14" stroke-width="2.4" /> New
     </button>
-    
+
     <div v-if="showForm" class="form-content">
       <div class="input-row">
-        <button @click="toggleForm" class="cancel-btn" title="Cancel">
-          ✕
-        </button>
+        <Icon name="folder" :size="15" class="input-icon" />
         <input
+          ref="inputRef"
           v-model="name"
-          placeholder="Enter collection name..."
-          class="collection-input"
+          placeholder="Collection name, e.g. Auth service"
+          class="ui-input collection-input"
           :class="{ error: nameError }"
           @keyup.enter="add"
+          @keyup.esc="toggleForm"
         />
-        <button @click="add" class="add-btn" title="Add Collection">+</button>
+        <button @click="add" class="ui-btn ui-btn--primary" :disabled="!name.trim()" title="Add Collection">Create</button>
+        <button @click="toggleForm" class="ui-btn ui-btn--ghost" title="Cancel">Cancel</button>
       </div>
-      <div v-if="nameError" class="name-error">⚠️ {{ nameError }}</div>
+      <div v-if="nameError" class="name-error"><Icon name="alert" :size="13" /> {{ nameError }}</div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, watch } from "vue";
+import { ref, watch, nextTick } from "vue";
+import Icon from "./Icon.vue";
 import { addCollection, getCollections } from "../../db/collections.repo";
 
 const emit = defineEmits(['collectionAdded', 'formToggled']);
@@ -32,6 +34,7 @@ const emit = defineEmits(['collectionAdded', 'formToggled']);
 const name = ref("");
 const showForm = ref(false);
 const nameError = ref("");
+const inputRef = ref(null);
 
 watch(name, () => { nameError.value = ""; });
 
@@ -42,6 +45,7 @@ function toggleForm() {
     nameError.value = "";
   }
   emit('formToggled', showForm.value);
+  if (showForm.value) nextTick(() => inputRef.value?.focus());
 }
 
 async function add() {
@@ -67,127 +71,52 @@ async function add() {
 
 <style scoped>
 .add-collection {
-  border-radius: 0;
+  flex-shrink: 0;
 }
 
 .add-collection.form-open {
-  width: 100%;
+  flex: 1;
 }
 
-.toggle-btn {
-  width: 100%;
-  padding: 6px;
-  background: var(--button-bg);
-  color: var(--text-main);
-  border: none;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-}
-
-.toggle-btn:hover {
-  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+.new-btn {
+  padding: 0 11px 0 9px;
 }
 
 .form-content {
-  /* margin-top: 16px; */
-  animation: slideDown 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .input-row {
-  display: flex;
-  gap: 8px;
-  /* margin-bottom: 12px; */
-  align-items: center;
-}
-
-.cancel-btn {
-  padding: 6px;
-  background: #dc3545;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-  width: 35px;
-  height: 35px;
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 6px;
 }
 
-.cancel-btn:hover {
-  background: #c82333;
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.input-icon {
+  position: absolute;
+  left: 10px;
+  color: var(--text-3);
+  pointer-events: none;
 }
 
 .collection-input {
   flex: 1;
-  padding: 6px;
-  border: 2px solid var(--field-border);
-  border-radius: 8px;
-  font-size: 12px;
-  transition: all 0.3s ease;
-  box-sizing: border-box;
-  background: var(--field-bg);
-  color: var(--field-text);
-}
-
-.collection-input:focus {
-  outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--focus-ring);
+  padding-left: 32px;
 }
 
 .collection-input.error {
-  border-color: #dc3545;
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-soft);
 }
 
 .name-error {
-  font-size: 11px;
-  color: #dc3545;
-  margin-top: 4px;
-  padding: 0 4px;
-  word-break: break-word;
-}
-
-.add-btn {
-  width: 35px;
-  height: 35px;
-  padding: 6px;
-  background: #28a745;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
-}
-
-.add-btn:hover {
-  background: #218838;
-  box-shadow: 0 6px 16px rgba(40, 167, 69, 0.4);
-}
-
-.add-btn:active {
-  transform: translateY(0);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--danger-text);
+  font-size: 12px;
 }
 </style>

@@ -1,0 +1,498 @@
+/* Global design tokens + shared UI primitives for every extension page.
+   Tokens live on :root so teleported dialogs/toasts are themed too; App.vue sets
+   <html data-theme="dark"> for the dark theme. No web fonts are loaded (privacy:
+   extension pages make no network requests). */
+
+:root {
+  color-scheme: light;
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --surface-2: #f8f9fb;
+  --surface-3: #eef0f4;
+  --border: #e4e7ec;
+  --border-strong: #d0d5dd;
+  --text: #101828;
+  --text-2: #475467;
+  --text-3: #8b95a7;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --accent-soft: #eef2ff;
+  --accent-text: #3730a3;
+  --accent-ring: rgba(79, 70, 229, 0.22);
+  --on-accent: #ffffff;
+  --success: #16a34a;
+  --success-soft: #e7f6ec;
+  --success-text: #15803d;
+  --warning: #d97706;
+  --warning-soft: #fef3e2;
+  --warning-text: #b45309;
+  --danger: #dc2626;
+  --danger-soft: #fdecec;
+  --danger-text: #b91c1c;
+  --info-soft: #e6f4fb;
+  --info-text: #0369a1;
+  --code-bg: #0f1218;
+  --code-text: #e6e9ef;
+  --code-gutter: #6b7385;
+  --mark-bg: #fde68a;
+  --mark-text: #111827;
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-md: 0 4px 12px rgba(16, 24, 40, 0.08), 0 1px 3px rgba(16, 24, 40, 0.06);
+  --shadow-lg: 0 16px 40px rgba(16, 24, 40, 0.16), 0 2px 8px rgba(16, 24, 40, 0.08);
+  --overlay: rgba(16, 24, 40, 0.45);
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, "Liberation Mono", monospace;
+
+  /* Legacy names still used by some component styles */
+  --app-bg: var(--bg);
+  --panel-bg: var(--bg);
+  --header-bg: var(--surface);
+  --surface-bg: var(--surface);
+  --surface-muted: var(--surface-2);
+  --surface-soft: var(--surface-3);
+  --text-main: var(--text);
+  --text-body: var(--text-2);
+  --text-muted: var(--text-3);
+  --text-faint: var(--text-3);
+  --border-color: var(--border-strong);
+  --border-soft: var(--border);
+  --field-bg: var(--surface);
+  --field-text: var(--text);
+  --field-border: var(--border-strong);
+  --button-bg: var(--surface);
+  --button-hover-bg: var(--surface-2);
+  --primary: var(--accent);
+  --focus-ring: var(--accent-ring);
+  --card-shadow: var(--shadow-sm);
+  --menu-shadow: var(--shadow-lg);
+  --search-match-bg: var(--warning-soft);
+  --search-match-border: var(--warning);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0c0e13;
+  --surface: #14171f;
+  --surface-2: #1a1e28;
+  --surface-3: #232834;
+  --border: #252a36;
+  --border-strong: #343b4b;
+  --text: #e9ebf1;
+  --text-2: #a9b1c1;
+  --text-3: #707a8c;
+  --accent: #818cf8;
+  --accent-hover: #a5b4fc;
+  --accent-soft: rgba(129, 140, 248, 0.14);
+  --accent-text: #c7d2fe;
+  --accent-ring: rgba(129, 140, 248, 0.3);
+  --on-accent: #0c0e13;
+  --success: #4ade80;
+  --success-soft: rgba(74, 222, 128, 0.12);
+  --success-text: #86efac;
+  --warning: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, 0.13);
+  --warning-text: #fcd34d;
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.13);
+  --danger-text: #fca5a5;
+  --info-soft: rgba(56, 189, 248, 0.12);
+  --info-text: #7dd3fc;
+  --code-bg: #090b0f;
+  --code-text: #e6e9ef;
+  --mark-bg: #a16207;
+  --mark-text: #fff7d6;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.6);
+  --overlay: rgba(0, 0, 0, 0.6);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* Native <select> popups: options inherit the (light) text colour in dark mode but
+   Chrome may paint the popup itself white when the option background is
+   transparent, so give every option explicit theme colours. */
+select {
+  color-scheme: inherit;
+}
+
+select option,
+select optgroup {
+  background-color: var(--surface);
+  color: var(--text);
+}
+
+select option:checked {
+  /* opaque on purpose: a translucent colour would sit on the white popup again */
+  background-color: color-mix(in srgb, var(--accent) 24%, var(--surface));
+  color: var(--text);
+}
+
+select option:disabled {
+  color: var(--text-3);
+}
+
+code,
+pre,
+kbd,
+.mono {
+  font-family: var(--font-mono);
+}
+
+mark {
+  background: var(--mark-bg);
+  color: var(--mark-text);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Thin, unobtrusive scrollbars (visible so scrolling stays discoverable) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---- Buttons ---------------------------------------------------------- */
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 550;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+  box-shadow: var(--shadow-sm);
+}
+
+.ui-btn:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--text-3);
+}
+
+.ui-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ui-btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.ui-btn--primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.ui-btn--danger {
+  color: var(--danger-text);
+}
+
+.ui-btn--danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+}
+
+.ui-btn--danger-solid {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+.ui-btn--danger-solid:hover:not(:disabled) {
+  filter: brightness(0.93);
+  background: var(--danger);
+}
+
+.ui-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--text-2);
+}
+
+.ui-btn--ghost:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: transparent;
+  color: var(--text);
+}
+
+.ui-btn--sm {
+  height: 26px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+
+.ui-btn--lg {
+  height: 38px;
+  padding: 0 18px;
+  font-size: 13.5px;
+}
+
+.ui-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.ui-icon-btn:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.ui-icon-btn--bordered {
+  border-color: var(--border-strong);
+  background: var(--surface);
+  color: var(--text-2);
+  box-shadow: var(--shadow-sm);
+}
+
+.ui-icon-btn--bordered:hover {
+  background: var(--surface-2);
+}
+
+.ui-icon-btn--active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.ui-icon-btn--sm {
+  width: 24px;
+  height: 24px;
+}
+
+/* ---- Chips / badges --------------------------------------------------- */
+.ui-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+button.ui-chip {
+  border: none;
+  cursor: pointer;
+}
+
+.ui-chip--mono {
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+.ui-chip--accent { background: var(--accent-soft); color: var(--accent-text); }
+.ui-chip--success { background: var(--success-soft); color: var(--success-text); }
+.ui-chip--warning { background: var(--warning-soft); color: var(--warning-text); }
+.ui-chip--danger { background: var(--danger-soft); color: var(--danger-text); }
+.ui-chip--info { background: var(--info-soft); color: var(--info-text); }
+.ui-chip--solid-danger { background: var(--danger); color: #fff; }
+
+/* ---- Form fields ------------------------------------------------------ */
+.ui-input,
+.ui-select,
+.ui-textarea {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.ui-textarea {
+  height: auto;
+  padding: 8px 10px;
+  resize: vertical;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.ui-input::placeholder,
+.ui-textarea::placeholder {
+  color: var(--text-3);
+}
+
+.ui-input:focus,
+.ui-select:focus,
+.ui-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.ui-label {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.ui-checkbox {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.ui-kbd {
+  display: inline-block;
+  padding: 0 5px;
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 16px;
+}
+
+/* ---- Panels (side sheets) --------------------------------------------- */
+.ui-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  z-index: 2000;
+  animation: ui-fade 0.15s ease;
+}
+
+.ui-sheet {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100%;
+  background: var(--surface);
+  color: var(--text);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  overflow-y: auto;
+  z-index: 2001;
+  animation: ui-slide-in 0.2s ease;
+}
+
+.ui-sheet-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.ui-sheet-header h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+@keyframes ui-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes ui-slide-in {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes ui-pop {
+  from { transform: translateY(4px) scale(0.98); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

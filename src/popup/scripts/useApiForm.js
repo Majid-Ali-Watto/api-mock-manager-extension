@@ -1,6 +1,6 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from "vue";
 import { addApi, updateApi, getApisByCollection } from "../../db/apis.repo";
-import { HttpMethods } from "../../types/models";
+import { HttpMethods, ResponseModes, ContentTypes } from "../../types/models";
 import { useLineNumbers } from "../composables/useLineNumbers";
 import { useJsonValidation } from "../composables/useJsonValidation";
 import { useFormStorage } from "../composables/useFormStorage";
@@ -24,6 +24,14 @@ export function useApiForm(props, emit, { onSaved } = {}) {
   const requestPayload = ref("");
   const responsePayload = ref("");
   const headerRows = ref([{ key: "", value: "", enabled: true }]);
+  // Advanced options (all optional; defaults keep the original behaviour)
+  const matchQuery = ref("");
+  const matchBody = ref(false);
+  const responseMode = ref("mock");
+  const contentType = ref("application/json");
+  const templated = ref(false);
+  const variants = ref([]);
+  const activeVariant = ref("");
   const showForm = ref(false);
   const editMode = ref(false);
   const editingApiId = ref(null);
@@ -39,6 +47,33 @@ export function useApiForm(props, emit, { onSaved } = {}) {
   const isLoadingFromEdit = ref(false);
 
   const methods = HttpMethods;
+  const responseModes = ResponseModes;
+  const contentTypes = ContentTypes;
+
+  // Response JSON is only validated for JSON content that isn't a template
+  // (e.g. {"id": {{params.id}}} is valid only after rendering).
+  const responseIsJson = computed(() => /json/i.test(contentType.value) && !templated.value);
+
+  function addVariant() {
+    variants.value.push({ name: `variant ${variants.value.length + 1}`, status: 200, responseMode: "mock", responsePayload: "" });
+  }
+
+  function removeVariant(index) {
+    const [removed] = variants.value.splice(index, 1);
+    if (removed && removed.name === activeVariant.value) activeVariant.value = "";
+  }
+
+  function cleanVariants() {
+    const seen = new Set();
+    return variants.value
+      .map((v) => ({
+        name: String(v.name || "").trim(),
+        status: Number(v.status) || 200,
+        responseMode: v.responseMode || "mock",
+        responsePayload: v.responsePayload || "",
+      }))
+      .filter((v) => v.name && !seen.has(v.name) && seen.add(v.name));
+  }
   const STORAGE_KEY = `api-form-${props.collectionId}`;
 
   function serializeHeaderRows(rows) {
@@ -86,7 +121,7 @@ export function useApiForm(props, emit, { onSaved } = {}) {
     if (requestPayload.value && requestPayload.value.trim()) {
       if (!isJsonValid(requestPayload.value)) return false;
     }
-    if (responsePayload.value && responsePayload.value.trim()) {
+    if (responseIsJson.value && responsePayload.value && responsePayload.value.trim()) {
       if (!isJsonValid(responsePayload.value)) return false;
     }
     return true;
@@ -105,6 +140,13 @@ export function useApiForm(props, emit, { onSaved } = {}) {
       responsePayload,
       headerRows,
       activeTab,
+      matchQuery,
+      matchBody,
+      responseMode,
+      contentType,
+      templated,
+      variants,
+      activeVariant,
     },
     showForm
   );
@@ -148,6 +190,13 @@ export function useApiForm(props, emit, { onSaved } = {}) {
       headerRows,
       activeTab,
       showForm,
+      matchQuery,
+      matchBody,
+      responseMode,
+      contentType,
+      templated,
+      variants,
+      activeVariant,
     ],
     () => {
       // Don't save to storage if we're loading from edit
@@ -163,6 +212,8 @@ export function useApiForm(props, emit, { onSaved } = {}) {
     },
     { deep: true }
   );
+
+  watch([contentType, templated], () => validateJson("response"));
 
   watch(method, (newMethod) => {
     if (newMethod === "GET" && activeTab.value === "request") {
@@ -190,6 +241,13 @@ export function useApiForm(props, emit, { onSaved } = {}) {
     requestPayload.value = "";
     responsePayload.value = "";
     headerRows.value = [{ key: "", value: "", enabled: true }];
+    matchQuery.value = "";
+    matchBody.value = false;
+    responseMode.value = "mock";
+    contentType.value = "application/json";
+    templated.value = false;
+    variants.value = [];
+    activeVariant.value = "";
     requestValidationError.value = "";
     responseValidationError.value = "";
     editMode.value = false;
@@ -216,6 +274,15 @@ export function useApiForm(props, emit, { onSaved } = {}) {
     delay.value = api.delay || 0;
     urlMatchType.value = api.urlMatchType || "auto";
     headerRows.value = deserializeHeaderRows(api.responseHeaders);
+    matchQuery.value = api.matchQuery || "";
+    matchBody.value = api.matchBody === true;
+    responseMode.value = api.responseMode || "mock";
+    contentType.value = typeof api.contentType === "string" ? api.contentType : "application/json";
+    templated.value = api.templated === true;
+    variants.value = Array.isArray(api.variants)
+      ? api.variants.map((v) => ({ status: 200, responsePayload: "", ...v, responseMode: v.responseMode || "mock" }))
+      : [];
+    activeVariant.value = api.activeVariant || "";
     const formattedRequest = formatJsonString(api.requestPayload ?? "");
     const formattedResponse = formatJsonString(api.responsePayload ?? "");
     requestPayload.value = formattedRequest;
@@ -267,6 +334,10 @@ export function useApiForm(props, emit, { onSaved } = {}) {
   }
 
   function validateJson(type) {
+    if (type === "response" && !responseIsJson.value) {
+      responseValidationError.value = "";
+      return true;
+    }
     const payload = type === "request" ? requestPayload.value : responsePayload.value;
     const result = validateJsonComposable(type, payload);
     
@@ -339,8 +410,18 @@ export function useApiForm(props, emit, { onSaved } = {}) {
         requestPayload: requestPayload.value,
         responsePayload: responsePayload.value,
         responseHeaders: serializeHeaderRows(headerRows.value),
+        matchQuery: matchQuery.value.trim(),
+        matchBody: matchBody.value === true,
+        responseMode: responseMode.value || "mock",
+        contentType: contentType.value,
+        templated: templated.value === true,
+        variants: cleanVariants(),
+        activeVariant: "",
         collectionId: props.collectionId,
       };
+      apiData.activeVariant = apiData.variants.some((v) => v.name === activeVariant.value)
+        ? activeVariant.value
+        : "";
 
       const existingApis = await getApisByCollection(props.collectionId);
       const nResp = normalizePayload(apiData.responsePayload);
@@ -349,12 +430,14 @@ export function useApiForm(props, emit, { onSaved } = {}) {
         (a) =>
           a.url === apiData.url &&
           a.method === apiData.method &&
+          (a.matchQuery || "") === apiData.matchQuery &&
+          (a.matchBody === true) === apiData.matchBody &&
           normalizePayload(a.responsePayload) === nResp &&
           normalizePayload(a.requestPayload) === nReq &&
           (!editMode.value || a.id !== editingApiId.value),
       );
       if (duplicate) {
-        saveError.value = `An API with the same URL, method, and payloads already exists ("${duplicate.label || duplicate.url}"). Change at least one field, or use the Duplicate button to create an intentional copy.`;
+        saveError.value = `An API with the same URL, method, conditions, and payloads already exists ("${duplicate.label || duplicate.url}"). Change at least one field, or use the Duplicate button to create an intentional copy.`;
         return;
       }
 
@@ -410,6 +493,18 @@ export function useApiForm(props, emit, { onSaved } = {}) {
     requestPayload,
     responsePayload,
     headerRows,
+    matchQuery,
+    matchBody,
+    responseMode,
+    contentType,
+    templated,
+    variants,
+    activeVariant,
+    responseModes,
+    contentTypes,
+    responseIsJson,
+    addVariant,
+    removeVariant,
     showForm,
     editMode,
     editingApiId,

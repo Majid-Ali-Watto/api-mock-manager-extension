@@ -4,13 +4,14 @@ export async function addCollection(name) {
   try {
     const db = await dbPromise;
     const tx = db.transaction(STORES.COLLECTIONS, "readwrite");
-    await tx.objectStore(STORES.COLLECTIONS).add({
+    const id = await tx.objectStore(STORES.COLLECTIONS).add({
       name,
       enabled: true,
       createdAt: Date.now(),
     });
     await tx.done;
     console.log("Collection added:", name);
+    return id;
   } catch (err) {
     console.error("Error adding collection:", err);
   }
@@ -80,4 +81,25 @@ export async function toggleCollectionEnabled(collectionId, enabled) {
   } catch (err) {
     console.error("Error updating collection enabled status:", err);
   }
+}
+
+// Removes every collection and API in one transaction (used by "Replace All" import).
+export async function clearAllData() {
+  const db = await dbPromise;
+  const tx = db.transaction([STORES.COLLECTIONS, STORES.APIS], "readwrite");
+  await Promise.all([
+    tx.objectStore(STORES.COLLECTIONS).clear(),
+    tx.objectStore(STORES.APIS).clear(),
+    tx.done,
+  ]);
+}
+
+// `sites` is a list of host patterns; an empty list means the collection applies to all sites.
+export async function updateCollectionSites(collectionId, sites) {
+  const db = await dbPromise;
+  const tx = db.transaction(STORES.COLLECTIONS, "readwrite");
+  const store = tx.objectStore(STORES.COLLECTIONS);
+  const col = await store.get(collectionId);
+  if (col) await store.put({ ...col, sites: Array.isArray(sites) ? sites : [], id: collectionId });
+  await tx.done;
 }

@@ -6,77 +6,76 @@
           type="checkbox"
           :checked="allSelected"
           @change="$emit('toggleAll')"
-          class="checkbox"
+          class="ui-checkbox"
         />
-        Select All
+        <span v-if="selectedCount > 0" class="selected-text">{{ selectedCount }} selected</span>
+        <span v-else class="totals">
+          <strong>{{ collectionCount }}</strong> {{ collectionCount === 1 ? "collection" : "collections" }}
+          <span class="sep">·</span>
+          <strong>{{ totalApiCount }}</strong> {{ totalApiCount === 1 ? "API" : "APIs" }}
+        </span>
       </label>
-      <div class="totals">
-        <span class="total-badge" title="Total collections">{{ collectionCount }} collections</span>
-        <span class="total-sep">·</span>
-        <span class="total-badge" title="Total APIs">{{ totalApiCount }} APIs</span>
-      </div>
     </div>
     <div class="bulk-actions-buttons">
+      <template v-if="selectedCount > 0">
+        <button @click="$emit('exportSelected')" class="ui-btn ui-btn--sm" title="Export Selected Collections">
+          <Icon name="upload" :size="13" /> Export
+        </button>
+        <button
+          @click="$emit('deleteSelected')"
+          class="ui-btn ui-btn--sm ui-btn--danger"
+          :title="`Delete ${selectedCount} Selected Collection(s)`"
+        >
+          <Icon name="trash" :size="13" /> Delete
+        </button>
+        <span class="divider" />
+      </template>
       <button
         @click="$emit('toggleSort')"
-        class="bulk-action-btn sort-btn"
+        class="ui-icon-btn"
         :title="`Sort by ${sortBy === 'name' ? 'Date' : 'Name'}`"
       >
-        {{ sortBy === "name" ? "🔤" : "📅" }}
+        <Icon :name="sortBy === 'name' ? 'type' : 'calendar'" :size="15" />
       </button>
       <button
         v-if="allExpanded"
         @click="$emit('collapseAll')"
-        class="bulk-action-btn collapse-btn"
+        class="ui-icon-btn"
         title="Collapse All Collections"
       >
-        ▲
+        <Icon name="chevrons-up" :size="15" />
       </button>
       <button
-        v-if="!allExpanded"
+        v-else
         @click="$emit('expandAll')"
-        class="bulk-action-btn expand-btn"
+        class="ui-icon-btn"
         title="Expand All Collections"
       >
-        ▼
+        <Icon name="chevrons-down" :size="15" />
       </button>
       <button
         v-if="!allEnabled"
         @click="$emit('enableAll')"
-        class="bulk-action-btn enable-btn"
+        class="ui-icon-btn"
         title="Resume All Collections"
       >
-        ▶️
+        <Icon name="play" :size="14" />
       </button>
       <button
-        v-if="allEnabled"
+        v-else
         @click="$emit('disableAll')"
-        class="bulk-action-btn disable-btn"
+        class="ui-icon-btn"
         title="Pause All Collections"
       >
-        ⏸️
-      </button>
-      <button
-        v-if="selectedCount > 0"
-        @click="$emit('exportSelected')"
-        class="bulk-action-btn export-btn"
-        title="Export Selected Collections"
-      >
-        📥
-      </button>
-      <button
-        v-if="selectedCount > 0"
-        @click="$emit('deleteSelected')"
-        class="bulk-delete-btn"
-        :title="`Delete ${selectedCount} Selected Collection(s)`"
-      >
-        🗑️ {{ selectedCount }}
+        <Icon name="pause" :size="14" />
       </button>
     </div>
   </div>
 </template>
 
 <script setup>
+import Icon from "./Icon.vue";
+
 defineProps({
   allSelected: Boolean,
   allExpanded: Boolean,
@@ -102,89 +101,47 @@ defineEmits([
 <style scoped>
 .bulk-actions-bar {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  background: var(--header-bg);
-  color: white;
-  border-radius: 12px 12px 0 0;
-  margin-bottom: 16px;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-}
-
-.bulk-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  gap: 8px;
+  min-height: 36px;
+  padding: 2px 4px 6px 12px;
 }
 
 .select-all-label {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  font-size: 13px;
+  gap: 9px;
+  color: var(--text-2);
+  font-size: 12px;
   cursor: pointer;
 }
 
-.totals {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.75);
+.totals strong,
+.selected-text {
+  color: var(--text);
+  font-weight: 650;
 }
 
-.total-badge {
-  font-weight: 600;
-}
-
-.total-sep {
-  opacity: 0.5;
+.sep {
+  margin: 0 3px;
+  color: var(--text-3);
 }
 
 .bulk-actions-buttons {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 2px;
 }
 
-.bulk-action-btn {
-  background: rgba(255, 255, 255, 0.2);
-  border: none;
-  color: white;
-  padding: 6px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.2s ease;
-  font-weight: 600;
+.bulk-actions-buttons .ui-btn {
+  margin-right: 4px;
 }
 
-.bulk-action-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: translateY(-2px);
-}
-
-.bulk-delete-btn {
-  background: #dc3545;
-  border: none;
-  color: white;
-  padding: 6px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  transition: all 0.2s ease;
-}
-
-.bulk-delete-btn:hover {
-  background: #c82333;
-  transform: translateY(-1px);
-}
-
-.checkbox {
-  cursor: pointer;
-  width: 16px;
-  height: 16px;
+.divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 6px 0 2px;
+  background: var(--border);
 }
 </style>

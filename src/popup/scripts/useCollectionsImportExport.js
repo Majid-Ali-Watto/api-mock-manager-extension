@@ -1,7 +1,10 @@
 import { addApi, getApisByCollection } from "../../db/apis.repo";
-import { addCollection, getCollections } from "../../db/collections.repo";
+import { addCollection, clearAllData, getCollections, updateCollectionSites } from "../../db/collections.repo";
+import { parseSitePatterns } from "../../utils/siteMatcher";
 import { useToast } from "../composables/useToast";
 import { useConfirm } from "../composables/useConfirm";
+import { notifyContentScripts } from "../utils/helpers";
+import { toExportApi, sanitizeImportedApi } from "../utils/apiSchema";
 
 function normalizePayload(payload) {
   if (!payload) return "";
@@ -35,19 +38,8 @@ export function useCollectionsImportExport({ onRefresh }) {
           name: collection.name,
           enabled: collection.enabled,
           createdAt: collection.createdAt,
-          apis: apis.map((api) => ({
-            label: api.label,
-            method: api.method,
-            url: api.url,
-            status: api.status,
-            requestPayload: api.requestPayload,
-            responsePayload: api.responsePayload,
-            responseHeaders: api.responseHeaders || "",
-            delay: api.delay || 0,
-            urlMatchType: api.urlMatchType || "auto",
-            enabled: api.enabled,
-            createdAt: api.createdAt,
-          })),
+          sites: collection.sites || [],
+          apis: apis.map(toExportApi),
         });
       }
 
@@ -126,15 +118,20 @@ export function useCollectionsImportExport({ onRefresh }) {
     let skippedApis = 0;
 
     for (const collectionData of allCollections) {
+      const name = String(collectionData?.name || "").trim() || "Imported Collection";
       let targetCollection = merge
-        ? existingByName.get(collectionData.name.toLowerCase())
+        ? existingByName.get(name.toLowerCase())
         : null;
 
       if (!targetCollection) {
-        await addCollection(collectionData.name);
-        const all = await getCollections();
-        targetCollection = all[all.length - 1];
-        existingByName.set(collectionData.name.toLowerCase(), targetCollection);
+        const newId = await addCollection(name);
+        if (newId === undefined) throw new Error(`Could not create collection "${name}"`);
+        targetCollection = { id: newId, name };
+        const { sites } = parseSitePatterns(
+          Array.isArray(collectionData?.sites) ? collectionData.sites.join(",") : ""
+        );
+        if (sites.length) await updateCollectionSites(newId, sites);
+        existingByName.set(name.toLowerCase(), targetCollection);
         importedCollections++;
       } else {
         skippedCollections++;
@@ -142,7 +139,13 @@ export function useCollectionsImportExport({ onRefresh }) {
 
       const existingApis = await getApisByCollection(targetCollection.id);
 
-      for (const apiData of collectionData.apis || []) {
+      const rawApis = Array.isArray(collectionData?.apis) ? collectionData.apis : [];
+      for (const rawApi of rawApis) {
+        const apiData = sanitizeImportedApi(rawApi);
+        if (!apiData) {
+          skippedApis++;
+          continue;
+        }
         const nResp = normalizePayload(apiData.responsePayload);
         const nReq = normalizePayload(apiData.requestPayload);
 
@@ -159,13 +162,7 @@ export function useCollectionsImportExport({ onRefresh }) {
           continue;
         }
 
-        await addApi({
-          ...apiData,
-          responseHeaders: apiData.responseHeaders || "",
-          delay: apiData.delay || 0,
-          urlMatchType: apiData.urlMatchType || "auto",
-          collectionId: targetCollection.id,
-        });
+        await addApi({ ...apiData, collectionId: targetCollection.id });
         existingApis.push({ ...apiData });
         importedApis++;
       }
@@ -173,10 +170,11 @@ export function useCollectionsImportExport({ onRefresh }) {
 
     let msg = `Import complete — ${importedCollections} collection(s), ${importedApis} API(s) added`;
     if (skippedCollections > 0 || skippedApis > 0) {
-      msg += `. Skipped ${skippedCollections} duplicate collection(s) and ${skippedApis} duplicate API(s).`;
+      msg += `. Skipped ${skippedCollections} existing collection(s) and ${skippedApis} duplicate/invalid API(s).`;
     }
     showToast(msg, "success", 5000);
     onRefresh?.();
+    notifyContentScripts();
   }
 
   async function processFilesImport(files) {
@@ -216,7 +214,15 @@ export function useCollectionsImportExport({ onRefresh }) {
       if (!proceed) return;
     }
 
-    await importCollections(allCollections, merge);
+    try {
+      if (!merge) await clearAllData();
+      await importCollections(allCollections, merge);
+    } catch (err) {
+      console.error("Import error:", err);
+      showToast("Import failed: " + err.message, "error", 6000);
+      onRefresh?.();
+      notifyContentScripts();
+    }
   }
 
   async function processFileImport(file) {

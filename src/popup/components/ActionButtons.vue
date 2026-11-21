@@ -1,80 +1,109 @@
 <template>
-  <div class="import-export-buttons">
+  <div class="action-buttons">
     <button
-      @click="$emit('export')"
-      class="action-btn export-btn"
-      title="Export All Collections"
+      @click="$emit('toggleMocks')"
+      :class="['power-pill', mocksEnabled ? 'on' : 'off']"
+      :title="mocksEnabled ? 'Mocks are ON — click to turn all mocks off (Alt+Shift+M)' : 'Mocks are OFF — click to turn them back on (Alt+Shift+M)'"
     >
-      <!-- 📥 -->
-       ⬆️
+      <span class="dot" />
+      {{ mocksEnabled ? "On" : "Off" }}
     </button>
-    <button
-      @click="$emit('import')"
-      class="action-btn import-btn"
-      title="Import Collections"
-    >
-      <!-- 📤 -->
-       ⬇️
+    <span class="divider" />
+    <button @click="$emit('toggleLog')" class="ui-icon-btn" title="Request log">
+      <Icon name="log" />
     </button>
-    <button
-      @click="$emit('toggleInfo')"
-      class="action-btn info-btn"
-      title="Extension Info"
-    >
-      ℹ️
+    <button @click="$emit('export')" class="ui-icon-btn" title="Export All Collections">
+      <Icon name="upload" />
+    </button>
+    <button @click="$emit('import')" class="ui-icon-btn" title="Import Collections">
+      <Icon name="download" />
     </button>
     <button
       @click="$emit('toggleTheme')"
-      class="action-btn theme-btn"
-      :title="theme === 'dark' ? 'Switch to current theme' : 'Switch to dark theme'"
+      class="ui-icon-btn"
+      :title="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
     >
-      {{ theme === "dark" ? "☀️" : "🌙" }}
+      <Icon :name="theme === 'dark' ? 'sun' : 'moon'" />
+    </button>
+    <button @click="$emit('toggleInfo')" class="ui-icon-btn" title="Extension Info">
+      <Icon name="info" />
     </button>
   </div>
 </template>
 
 <script setup>
+import Icon from "./Icon.vue";
+
 defineProps({
   theme: {
     type: String,
     default: "current",
   },
+  mocksEnabled: {
+    type: Boolean,
+    default: true,
+  },
 });
 
-defineEmits(["export", "import", "toggleInfo", "toggleTheme"]);
+defineEmits(["export", "import", "toggleInfo", "toggleTheme", "toggleMocks", "toggleLog"]);
 </script>
 
 <style scoped>
-.import-export-buttons {
+.action-buttons {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 2px;
   flex-shrink: 0;
 }
 
-.action-btn {
-  padding: 6px;
-  border: none;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
+.divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 6px;
+  background: var(--border);
+}
+
+.power-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 11px 0 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 650;
   cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 
-.export-btn,
-.import-btn,
-.info-btn,
-.theme-btn {
-  background: var(--button-bg);
-  color: var(--text-main);
+.power-pill .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-3);
 }
 
-.theme-btn:hover,
-.info-btn:hover,
-.export-btn:hover,
-.import-btn:hover {
-  background: var(--button-hover-bg);
-  transform: scale(1.05);
+.power-pill.on {
+  border-color: transparent;
+  background: var(--success-soft);
+  color: var(--success-text);
+}
+
+.power-pill.on .dot {
+  background: var(--success);
+  box-shadow: 0 0 0 3px var(--success-soft);
+}
+
+.power-pill.off {
+  background: var(--warning-soft);
+  border-color: transparent;
+  color: var(--warning-text);
+}
+
+.power-pill.off .dot {
+  background: var(--warning);
 }
 </style>
