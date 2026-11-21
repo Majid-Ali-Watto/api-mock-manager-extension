@@ -58,11 +58,18 @@ vue-api-mock-extension/
 │   │   ├── components/
 │   │   ├── composables/
 │   │   ├── scripts/
+│   │   ├── styles/       # design tokens + ui-* primitives
 │   │   └── utils/
-│   └── types/
+│   ├── types/
+│   └── utils/            # URL, site, request matching and templates
+├── scripts/              # verify.mjs, generate-icons.mjs
+├── tests/                # unit tests + e2e/run.mjs
+├── .github/workflows/    # ci.yml, release.yml, pages.yml
 ├── index.html
 ├── package.json
 ├── vite.config.js
+├── CHANGELOG.md
+├── LICENSE
 └── README.md
 ```
 
@@ -82,19 +89,20 @@ vue-api-mock-extension/
 
 ## Installation
 
+### From a release
+
+1. Download `api-mock-manager-vX.Y.Z.zip` from the [latest release](https://github.com/Majid-Ali-Watto/api-mock-manager-extension/releases/latest).
+2. Unzip it into a folder.
+3. Open `chrome://extensions/`, enable **Developer mode**, click **Load unpacked** and select that folder.
+
+### From source
+
 ```bash
-npm install
+npm ci
 npm run build
 ```
 
-Then load the extension in Chrome:
-
-1. Open `chrome://extensions/`.
-2. Enable Developer mode.
-3. Click Load unpacked.
-4. Select the `dist` folder.
-
-After rebuilding, reload the extension from `chrome://extensions` and refresh any target website tabs.
+Then load the `dist` folder with **Load unpacked** as above. After rebuilding, reload the extension from `chrome://extensions` and refresh any target website tabs.
 
 ## Usage
 
@@ -220,6 +228,8 @@ npm run clean
 npm run package
 npm test
 npm run test:e2e
+npm run verify
+npm run icons
 ```
 
 Command notes:
@@ -232,7 +242,25 @@ Command notes:
 - `npm test`: Unit tests for URL, site, request matching and templates (Node's built-in test runner, no extra packages).
 - `npm run test:e2e`: Loads `dist/` into Chrome for Testing and checks interception, site scoping, privacy of the page bridge, recording, badge and global switch. Run `npm run build` first. It uses `CHROME_PATH` or a Chrome for Testing found in `~/.cache/puppeteer` or `./.cache`. Install one with `npx @puppeteer/browsers install chrome@stable --path .cache` (branded Chrome ignores `--load-extension`).
 
-CI (`.github/workflows/ci.yml`) runs both suites on every push and pull request and uploads the packaged zip.
+- `npm run verify`: Checks the built extension: `package.json`, `manifest.json` (and `RELEASE_TAG`, if set) versions match, every file the manifest references exists in `dist/`, permissions stay within the allowlist in `scripts/verify.mjs`, and no source maps ship.
+- `npm run icons`: Regenerates the PNG icons (see Icon Generation).
+
+## CI And Releases
+
+CI (`.github/workflows/ci.yml`) runs on every push to `master` and every pull request, as two status checks:
+
+1. **Checks**: `npm audit` for production dependencies (fails on high severity), unit tests, production build and `npm run verify`.
+2. **E2E**: builds, runs the end-to-end suite in Chrome for Testing, and uploads the packaged zip as the `api-mock-extension` artifact.
+
+To publish a release:
+
+1. Bump `version` in both `package.json` and `public/manifest.json`.
+2. Add a `## [x.y.z]` section to `CHANGELOG.md`.
+3. Commit, then tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+
+`.github/workflows/release.yml` re-runs the full CI for the tag, checks that the tag matches the versions, and creates a GitHub release named `API Mock Manager vX.Y.Z` with `api-mock-manager-vX.Y.Z.zip` attached and the changelog section as its notes.
+
+The privacy and terms pages are published to GitHub Pages by `.github/workflows/pages.yml`.
 
 ## Build Output
 

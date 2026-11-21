@@ -9,9 +9,11 @@ Stack: Vue 3 popup UI, Vite build, IndexedDB storage, Manifest V3 background/con
 
 - `src/popup/**`: UI for collections, APIs, import/export, search, and enable/disable flows
 - `src/db/**`: IndexedDB schema and CRUD helpers
-- `src/background.js`: reads enabled mocks and notifies tabs
-- `src/content.js`: injects `injected.js` and syncs mocks into the page
-- `src/injected.js`: monkey-patches `fetch` and `XMLHttpRequest`
+- `src/background.js`: serves enabled mocks per frame (site scoping, variants), hits/request log, global switch, recording, badge
+- `src/content.js`: bridges background ↔ page over a private MessagePort (manifest injects both content scripts)
+- `src/injected.js`: MAIN-world script patching `fetch`, XHR, `sendBeacon`, `EventSource`, `WebSocket`
+- `src/utils/*`: pure matching/template helpers (unit-tested in `tests/`)
+- `scripts/`: `verify.mjs` (release checks), `generate-icons.mjs`
 
 ## Important Constraints
 
@@ -23,6 +25,8 @@ Stack: Vue 3 popup UI, Vite build, IndexedDB storage, Manifest V3 background/con
 - `content.js` / `injected.js` are classic content scripts: never import a module from them that another entry (background/popup) also imports, or Rollup splits it into a chunk they can't load (the build fails via the `classic-content-scripts` check in `vite.config.js`).
 - Page ↔ extension traffic goes over the private MessagePort set up at `document_start`; never send mock data via DOM events.
 - Run `npm test` and `npm run build && npm run test:e2e` after touching interception.
+- Permission changes must update the allowlist in `scripts/verify.mjs` and `public/privacy.html` together.
+- Releases: bump `package.json` + `public/manifest.json`, add a `CHANGELOG.md` section, push a `vX.Y.Z` tag.
 
 ## Efficient Workflow
 
