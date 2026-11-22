@@ -22,11 +22,9 @@ export default defineConfig({
     sourcemap: false,
     outDir: "dist",
     emptyOutDir: true,
-    // Minify with esbuild (faster than terser, built-in)
-    minify: 'esbuild',
     // Optimize chunk size
     chunkSizeWarningLimit: 1000,
-    rollupOptions: {
+    rolldownOptions: {
       input: {
         popup: resolve(__dirname, "index.html"),
         background: resolve(__dirname, "src/background.js"),
@@ -38,9 +36,7 @@ export default defineConfig({
           return chunkInfo.name === 'background' || chunkInfo.name === 'content' || chunkInfo.name === 'injected'
             ? '[name].js'
             : 'assets/[name]-[hash].js';
-        },
-        // Optimize chunk splitting
-        manualChunks: undefined
+        }
       }
     }
   },
